@@ -277,6 +277,26 @@ class PermissionDeskTest extends TestCase
     }
 
     #[Test]
+    public function outside_changes_are_kept_even_when_the_save_conflicts(): void
+    {
+        $db = $this->app()->getContainer()->make(ConnectionInterface::class);
+        $this->call('GET', '/history'); // takes the snapshot
+
+        // Changed outside, and it's the very permission the admin's stale page is about to save.
+        $db->table('group_permission')->insert(['permission' => 'discussion.lock', 'group_id' => 10]);
+        $r = $this->save([['discussion.lock', [4], [4, 3]]]);
+        $this->assertEquals(409, $r->getStatusCode());
+
+        // Read the table directly: opening History would run the check again and hide a lost entry.
+        $outside = $db->table('permission_desk_changesets')->where('kind', 'outside')->pluck('id')->all();
+        $this->assertCount(1, $outside, 'the outside change was logged and survived the rollback');
+        $change = $db->table('permission_desk_changes')->where('changeset_id', $outside[0])->first();
+        $this->assertEquals('discussion.lock', $change->permission);
+        $this->assertEquals([10], json_decode($change->after, true));
+        $this->assertEquals(0, $db->table('permission_desk_changesets')->where('kind', 'save')->count(), 'nothing of the save');
+    }
+
+    #[Test]
     public function presets_can_be_saved_listed_and_deleted(): void
     {
         $created = $this->json($this->call('POST', '/presets', 1, ['name' => 'Helpers', 'permissions' => ['discussion.lock', 'discussion.editPosts', 'bad key!']]));

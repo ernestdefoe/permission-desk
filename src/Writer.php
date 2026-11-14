@@ -45,10 +45,11 @@ class Writer
         $actor->assertAdmin();
         $changes = $this->validate($input);
 
-        return $this->db->transaction(function () use ($actor, $changes, $note, $kind, $undoOf) {
-            // Anything changed elsewhere since the last snapshot goes into History first.
-            $this->watcher->check();
+        // Anything changed elsewhere since the last snapshot goes into History first, committed on
+        // its own: a conflict below rolls back the save, never the record of those outside changes.
+        $this->watcher->check();
 
+        return $this->db->transaction(function () use ($actor, $changes, $note, $kind, $undoOf) {
             $current = $this->map->current();
             $conflicts = [];
             foreach ($changes as $key => $change) {

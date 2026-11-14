@@ -11,7 +11,8 @@
 - **Only core writes group_permission.** `Writer` calls core's own `SetPermissionController` (the handler behind `POST /api/permission`) once per permission inside ONE transaction. Never `Permission::insert` ourselves.
 - flarum/audit logs core's endpoint with HTTP middleware, which a direct controller call skips, so `Writer` logs the same `permission_changed` payload itself (guarded: enabled + class_exists).
 - **Conflicts refuse the whole save (409):** each change carries the `before` the admin saw; any mismatch with the live table saves nothing.
-- **Outside changes are history too:** `Watcher::check()` diffs the live table against the snapshot; runs before every save, when History opens, and nightly (`permission-desk:check`). First run only snapshots.
+- **Outside changes are history too:** `Watcher::check()` diffs the live table against the snapshot; runs before every save (OUTSIDE the save transaction, so a 409 never rolls back the outside entry), when History opens, and nightly (`permission-desk:check`). First run only snapshots.
+- **One audit entry per permission:** our direct controller call skips audit's HTTP middleware (it only wraps `/permission`), so Writer's own log is the only one; AuditTest pins it.
 - **Undo skips rows changed since** (current ≠ what that entry left), never overwrites them; an entry can be undone once.
 - Effective permissions use core's own `User::permissionGroupIds()` (unconfirmed email and flarum/suspend's processor make a member a guest). Never re-implement it.
 - Rows come from `app.registry` per extension, like core's grid; tag scoping follows flarum/tags' own rule. Guard tags, audit, suspend and Member Desk.
