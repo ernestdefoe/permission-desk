@@ -108,6 +108,7 @@ ernestdefoe-permission-desk:
       parent_hidden: parent hidden
       parent_hidden_help: "This group can't see {parent}, and Flarum hides a child tag from anyone who can't see its parent."
       open_note: "Not restricted: uses Everywhere's permissions"
+      open_short: Not restricted
       collapse_all: Collapse all
       expand_all: Expand all
       restrict_one: Restrict
