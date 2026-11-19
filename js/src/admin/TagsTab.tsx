@@ -94,100 +94,18 @@ export default class TagsTab extends Component<{ ui: TagsUi; openTag: (id: strin
     const g = ui.group;
     const canSee = restricted.filter((i) => allowed(g, scoped('viewForum', i.id))).length;
     const hasKids = new Set(items.filter((i) => i.parentId).map((i) => i.parentId!));
-    const allShown = shown.length > 0 && shown.every((i) => ui.selected[i.id]);
-    const anyOpen = [...hasKids].some((id) => !ui.collapsed[id]);
 
     return (
       <div className="PermissionDesk-tagsTab">
-        <div className="PermissionDesk-toolbar">
-          <label className="PermissionDesk-inline">
-            <span>{t('tags.for')}</span>
-            <select className="FormControl" value={String(g)} onchange={(e: Event) => (ui.group = Number((e.target as HTMLSelectElement).value))}>
-              {groups()
-                .filter((x) => Number(x.id()) !== ADMIN)
-                .map((x) => (
-                  <option value={String(x.id())}>{Number(x.id()) === GUEST ? t('guests_everyone') : groupName(Number(x.id()))}</option>
-                ))}
-            </select>
-          </label>
-          <input
-            className="FormControl PermissionDesk-search"
-            type="search"
-            value={ui.q}
-            placeholder={extractText(t('tags.search'))}
-            aria-label={extractText(t('tags.search'))}
-            oninput={(e: InputEvent) => {
-              ui.q = (e.target as HTMLInputElement).value;
-              ui.limit = PAGE;
-            }}
-          />
-          {hasKids.size ? (
-            <Button
-              className="Button"
-              icon={anyOpen ? 'fas fa-compress' : 'fas fa-expand'}
-              onclick={() => {
-                ui.collapsed = {};
-                if (anyOpen) hasKids.forEach((id) => (ui.collapsed[id] = true));
-              }}
-            >
-              {t(anyOpen ? 'tags.collapse_all' : 'tags.expand_all')}
-            </Button>
-          ) : null}
-        </div>
-        <div className="PermissionDesk-filters" role="group" aria-label={extractText(t('filter.label'))}>
-          {FILTERS.map((f) =>
-            f === 'selected' && !selected.length ? null : (
-              <button
-                className={'PermissionDesk-filter' + (ui.filter === f ? ' is-on' : '')}
-                aria-pressed={ui.filter === f ? 'true' : 'false'}
-                onclick={() => {
-                  ui.filter = f;
-                  ui.limit = PAGE;
-                }}
-              >
-                {t('tags.filter.' + f, { group: groupName(g), count: selected.length })}
-              </button>
-            )
-          )}
-        </div>
+        {this.toolbar(hasKids)}
+        {this.filters(selected)}
         <p className="PermissionDesk-note PermissionDesk-note--info">
           {t('tags.summary', { total: items.length, restricted: restricted.length, group: <b>{groupName(g)}</b>, see: canSee })}
         </p>
 
         {selected.length ? this.bulk(selected) : null}
 
-        <div className="PermissionDesk-scrollX">
-          <table className="PermissionDesk-matrix PermissionDesk-tagTable">
-            <thead>
-              <tr>
-                <th className="PermissionDesk-pick">
-                  <input
-                    type="checkbox"
-                    checked={allShown}
-                    aria-label={extractText(t('tags.select_shown'))}
-                    onchange={() => shown.forEach((i) => (allShown ? delete ui.selected[i.id] : (ui.selected[i.id] = true)))}
-                  />
-                </th>
-                <th>{t('tags.tag')}</th>
-                <th>{t('tags.view')}</th>
-                <th>{t('tags.start')}</th>
-                <th>{t('tags.reply')}</th>
-                <th>{t('tags.moderate')}</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((i) => this.row(i, hasKids.has(i.id)))}
-              {!shown.length ? (
-                <tr>
-                  <td colspan={7} className="PermissionDesk-muted">
-                    {t('tags.none')}
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
+        {this.table(shown, hasKids)}
         {list.length > shown.length ? (
           <Button className="Button" onclick={() => (ui.limit += PAGE)}>
             {t('tags.more', { count: list.length - shown.length })}
@@ -197,16 +115,114 @@ export default class TagsTab extends Component<{ ui: TagsUi; openTag: (id: strin
     );
   }
 
-  row(i: TagItem, parent: boolean) {
+  toolbar(hasKids: Set<string>) {
     const ui = this.attrs.ui;
     const g = ui.group;
-    const tree = !ui.q.trim() && ui.filter === 'all';
-    // Flarum hides a child tag from anyone who can't see its parent.
-    const parentItem = i.parentId ? this.byId.get(i.parentId) : null;
-    const parentHidden = !!parentItem?.restricted && allowed(g, scoped('viewForum', i.id)) && !allowed(g, scoped('viewForum', parentItem.id));
+    const anyOpen = [...hasKids].some((id) => !ui.collapsed[id]);
+    return (
+      <div className="PermissionDesk-toolbar">
+        <label className="PermissionDesk-inline">
+          <span>{t('tags.for')}</span>
+          <select className="FormControl" value={String(g)} onchange={(e: Event) => (ui.group = Number((e.target as HTMLSelectElement).value))}>
+            {groups()
+              .filter((x) => Number(x.id()) !== ADMIN)
+              .map((x) => (
+                <option value={String(x.id())}>{Number(x.id()) === GUEST ? t('guests_everyone') : groupName(Number(x.id()))}</option>
+              ))}
+          </select>
+        </label>
+        <input
+          className="FormControl PermissionDesk-search"
+          type="search"
+          value={ui.q}
+          placeholder={extractText(t('tags.search'))}
+          aria-label={extractText(t('tags.search'))}
+          oninput={(e: InputEvent) => {
+            ui.q = (e.target as HTMLInputElement).value;
+            ui.limit = PAGE;
+          }}
+        />
+        {hasKids.size ? (
+          <Button
+            className="Button"
+            icon={anyOpen ? 'fas fa-compress' : 'fas fa-expand'}
+            onclick={() => {
+              ui.collapsed = {};
+              if (anyOpen) hasKids.forEach((id) => (ui.collapsed[id] = true));
+            }}
+          >
+            {t(anyOpen ? 'tags.collapse_all' : 'tags.expand_all')}
+          </Button>
+        ) : null}
+      </div>
+    );
+  }
+
+  filters(selected: string[]) {
+    const ui = this.attrs.ui;
+    const g = ui.group;
+    return (
+      <div className="PermissionDesk-filters" role="group" aria-label={extractText(t('filter.label'))}>
+        {FILTERS.map((f) =>
+          f === 'selected' && !selected.length ? null : (
+            <button
+              className={'PermissionDesk-filter' + (ui.filter === f ? ' is-on' : '')}
+              aria-pressed={ui.filter === f ? 'true' : 'false'}
+              onclick={() => {
+                ui.filter = f;
+                ui.limit = PAGE;
+              }}
+            >
+              {t('tags.filter.' + f, { group: groupName(g), count: selected.length })}
+            </button>
+          )
+        )}
+      </div>
+    );
+  }
+
+  table(shown: TagItem[], hasKids: Set<string>) {
+    const ui = this.attrs.ui;
+    const allShown = shown.length > 0 && shown.every((i) => ui.selected[i.id]);
+    return (
+      <div className="PermissionDesk-scrollX">
+        <table className="PermissionDesk-matrix PermissionDesk-tagTable">
+          <thead>
+            <tr>
+              <th className="PermissionDesk-pick">
+                <input
+                  type="checkbox"
+                  checked={allShown}
+                  aria-label={extractText(t('tags.select_shown'))}
+                  onchange={() => shown.forEach((i) => (allShown ? delete ui.selected[i.id] : (ui.selected[i.id] = true)))}
+                />
+              </th>
+              <th>{t('tags.tag')}</th>
+              <th>{t('tags.view')}</th>
+              <th>{t('tags.start')}</th>
+              <th>{t('tags.reply')}</th>
+              <th>{t('tags.moderate')}</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((i) => this.row(i, hasKids.has(i.id)))}
+            {!shown.length ? (
+              <tr>
+                <td colspan={7} className="PermissionDesk-muted">
+                  {t('tags.none')}
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  row(i: TagItem, parent: boolean) {
+    const ui = this.attrs.ui;
     const changed = Object.keys(desk.staged).some((k) => k.startsWith(`tag${i.id}.`));
-    const mods = modRows();
-    const modOn = mods.filter((r) => allowed(g, scoped(r.key, i.id))).length;
 
     return (
       <tr className={(changed ? 'is-changed' : '') + (ui.selected[i.id] ? ' is-selected' : '')}>
@@ -218,61 +234,83 @@ export default class TagsTab extends Component<{ ui: TagsUi; openTag: (id: strin
             onchange={(e: Event) => ((e.target as HTMLInputElement).checked ? (ui.selected[i.id] = true) : delete ui.selected[i.id])}
           />
         </td>
-        <td>
-          <span className="PermissionDesk-tagName" style={{ paddingLeft: (tree ? i.depth * 20 : 0) + 'px' }}>
-            {tree && parent ? (
-              <button
-                className="PermissionDesk-caret"
-                aria-expanded={ui.collapsed[i.id] ? 'false' : 'true'}
-                aria-label={extractText(t(ui.collapsed[i.id] ? 'tags.expand' : 'tags.collapse', { tag: i.name }))}
-                onclick={() => (ui.collapsed[i.id] ? delete ui.collapsed[i.id] : (ui.collapsed[i.id] = true))}
-              >
-                <Icon name={ui.collapsed[i.id] ? 'fas fa-caret-right' : 'fas fa-caret-down'} />
-              </button>
-            ) : (
-              <span className="PermissionDesk-caretSpace" />
-            )}
-            <span className="PermissionDesk-tagDot" style={{ background: i.tag.attribute('color') || 'var(--pd-faint)' }} />
-            <span className="PermissionDesk-tagLabel">{tree ? i.name : i.path}</span>
-            {i.restricted ? <Icon name="fas fa-lock" className="PermissionDesk-lock" title={extractText(t('tags.restricted'))} /> : null}
-            {parentHidden ? (
-              <span
-                className="PermissionDesk-flag PermissionDesk-flag--amber"
-                title={extractText(t('tags.parent_hidden_help', { parent: parentItem!.name }))}
-              >
-                {t('tags.parent_hidden')}
-              </span>
-            ) : null}
-            {changed ? <span className="PermissionDesk-chip PermissionDesk-chip--unsaved">{t('unsaved')}</span> : null}
-          </span>
-        </td>
-        {i.restricted
-          ? [
-              ...CELLS.map((key) => <td>{this.cell(i, key)}</td>),
-              <td>
-                <button className="Button Button--link PermissionDesk-modCount" onclick={() => this.attrs.openTag(i.id, g)}>
-                  {modOn ? t('tags.of', { on: modOn, total: mods.length }) : <span className="PermissionDesk-no">–</span>}
-                </button>
-              </td>,
-              <td className="PermissionDesk-tagActions">
-                <Button className="Button Button--link" onclick={() => this.attrs.openTag(i.id, g)}>
-                  {t('tags.edit')}
-                </Button>
-              </td>,
-            ]
-          : [
-              <td colspan={4} className="PermissionDesk-muted PermissionDesk-openNote">
-                <span className="PermissionDesk-wide">{t('tags.open_note')}</span>
-                <span className="PermissionDesk-narrow">{t('tags.open_short')}</span>
-              </td>,
-              <td className="PermissionDesk-tagActions">
-                <Button className="Button Button--link" disabled={ui.busy} onclick={() => this.restrict([i.id])}>
-                  {t('tags.restrict_one')}
-                </Button>
-              </td>,
-            ]}
+        {this.nameCell(i, parent, changed)}
+        {i.restricted ? this.restrictedCells(i) : this.openCells(i)}
       </tr>
     );
+  }
+
+  nameCell(i: TagItem, parent: boolean, changed: boolean) {
+    const ui = this.attrs.ui;
+    const g = ui.group;
+    const tree = !ui.q.trim() && ui.filter === 'all';
+    // Flarum hides a child tag from anyone who can't see its parent.
+    const parentItem = i.parentId ? this.byId.get(i.parentId) : null;
+    const parentHidden = !!parentItem?.restricted && allowed(g, scoped('viewForum', i.id)) && !allowed(g, scoped('viewForum', parentItem.id));
+    return (
+      <td>
+        <span className="PermissionDesk-tagName" style={{ paddingLeft: (tree ? i.depth * 20 : 0) + 'px' }}>
+          {tree && parent ? (
+            <button
+              className="PermissionDesk-caret"
+              aria-expanded={ui.collapsed[i.id] ? 'false' : 'true'}
+              aria-label={extractText(t(ui.collapsed[i.id] ? 'tags.expand' : 'tags.collapse', { tag: i.name }))}
+              onclick={() => (ui.collapsed[i.id] ? delete ui.collapsed[i.id] : (ui.collapsed[i.id] = true))}
+            >
+              <Icon name={ui.collapsed[i.id] ? 'fas fa-caret-right' : 'fas fa-caret-down'} />
+            </button>
+          ) : (
+            <span className="PermissionDesk-caretSpace" />
+          )}
+          <span className="PermissionDesk-tagDot" style={{ background: i.tag.attribute('color') || 'var(--pd-faint)' }} />
+          <span className="PermissionDesk-tagLabel">{tree ? i.name : i.path}</span>
+          {i.restricted ? <Icon name="fas fa-lock" className="PermissionDesk-lock" title={extractText(t('tags.restricted'))} /> : null}
+          {parentHidden ? (
+            <span
+              className="PermissionDesk-flag PermissionDesk-flag--amber"
+              title={extractText(t('tags.parent_hidden_help', { parent: parentItem!.name }))}
+            >
+              {t('tags.parent_hidden')}
+            </span>
+          ) : null}
+          {changed ? <span className="PermissionDesk-chip PermissionDesk-chip--unsaved">{t('unsaved')}</span> : null}
+        </span>
+      </td>
+    );
+  }
+
+  restrictedCells(i: TagItem) {
+    const g = this.attrs.ui.group;
+    const mods = modRows();
+    const modOn = mods.filter((r) => allowed(g, scoped(r.key, i.id))).length;
+    return [
+      ...CELLS.map((key) => <td>{this.cell(i, key)}</td>),
+      <td>
+        <button className="Button Button--link PermissionDesk-modCount" onclick={() => this.attrs.openTag(i.id, g)}>
+          {modOn ? t('tags.of', { on: modOn, total: mods.length }) : <span className="PermissionDesk-no">–</span>}
+        </button>
+      </td>,
+      <td className="PermissionDesk-tagActions">
+        <Button className="Button Button--link" onclick={() => this.attrs.openTag(i.id, g)}>
+          {t('tags.edit')}
+        </Button>
+      </td>,
+    ];
+  }
+
+  openCells(i: TagItem) {
+    const ui = this.attrs.ui;
+    return [
+      <td colspan={4} className="PermissionDesk-muted PermissionDesk-openNote">
+        <span className="PermissionDesk-wide">{t('tags.open_note')}</span>
+        <span className="PermissionDesk-narrow">{t('tags.open_short')}</span>
+      </td>,
+      <td className="PermissionDesk-tagActions">
+        <Button className="Button Button--link" disabled={ui.busy} onclick={() => this.restrict([i.id])}>
+          {t('tags.restrict_one')}
+        </Button>
+      </td>,
+    ];
   }
 
   cell(i: TagItem, base: string) {
@@ -318,7 +356,6 @@ export default class TagsTab extends Component<{ ui: TagsUi; openTag: (id: strin
     const items = tagItems().filter((i) => ui.selected[i.id]);
     const restricted = items.filter((i) => i.restricted);
     const open = items.filter((i) => !i.restricted);
-    const whats: What[] = ['viewForum', 'startDiscussion', 'discussion.reply', 'post', 'moderate', 'all'];
 
     return (
       <div className="PermissionDesk-bulk" role="region" aria-label={extractText(t('tags.bulk_label'))}>
@@ -328,32 +365,7 @@ export default class TagsTab extends Component<{ ui: TagsUi; openTag: (id: strin
             {t('tags.clear_selection')}
           </Button>
         </div>
-        {restricted.length ? (
-          <div className="PermissionDesk-bulkRow">
-            <select
-              className="FormControl"
-              aria-label={extractText(t('tags.action'))}
-              value={ui.action}
-              onchange={(e: Event) => (ui.action = (e.target as HTMLSelectElement).value as any)}
-            >
-              <option value="allow">{t('tags.allow', { group: groupName(ui.group) })}</option>
-              <option value="remove">{t('tags.remove', { group: groupName(ui.group) })}</option>
-            </select>
-            <select
-              className="FormControl"
-              aria-label={extractText(t('tags.what'))}
-              value={ui.what}
-              onchange={(e: Event) => (ui.what = (e.target as HTMLSelectElement).value as What)}
-            >
-              {whats.map((w) => (
-                <option value={w}>{t('tags.what_' + w.replace('.', '_'))}</option>
-              ))}
-            </select>
-            <Button className="Button Button--primary" onclick={() => this.apply(restricted)}>
-              {t('tags.apply', { count: restricted.length })}
-            </Button>
-          </div>
-        ) : null}
+        {restricted.length ? this.bulkAction(restricted) : null}
         {restricted.length ? (
           <div className="PermissionDesk-bulkRow">
             <span>{t('tags.copy_from')}</span>
@@ -376,6 +388,37 @@ export default class TagsTab extends Component<{ ui: TagsUi; openTag: (id: strin
           ) : null}
         </div>
         {ui.action === 'remove' && ui.group !== GUEST ? <p className="PermissionDesk-muted">{t('tags.remove_note')}</p> : null}
+      </div>
+    );
+  }
+
+  bulkAction(restricted: TagItem[]) {
+    const ui = this.attrs.ui;
+    const whats: What[] = ['viewForum', 'startDiscussion', 'discussion.reply', 'post', 'moderate', 'all'];
+    return (
+      <div className="PermissionDesk-bulkRow">
+        <select
+          className="FormControl"
+          aria-label={extractText(t('tags.action'))}
+          value={ui.action}
+          onchange={(e: Event) => (ui.action = (e.target as HTMLSelectElement).value as any)}
+        >
+          <option value="allow">{t('tags.allow', { group: groupName(ui.group) })}</option>
+          <option value="remove">{t('tags.remove', { group: groupName(ui.group) })}</option>
+        </select>
+        <select
+          className="FormControl"
+          aria-label={extractText(t('tags.what'))}
+          value={ui.what}
+          onchange={(e: Event) => (ui.what = (e.target as HTMLSelectElement).value as What)}
+        >
+          {whats.map((w) => (
+            <option value={w}>{t('tags.what_' + w.replace('.', '_'))}</option>
+          ))}
+        </select>
+        <Button className="Button Button--primary" onclick={() => this.apply(restricted)}>
+          {t('tags.apply', { count: restricted.length })}
+        </Button>
       </div>
     );
   }

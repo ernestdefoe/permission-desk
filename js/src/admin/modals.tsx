@@ -58,54 +58,7 @@ export class ReviewModal extends FormModal<ReviewAttrs> {
     const diff = desk.diff();
     const byGroup = new Map<number, typeof diff>();
     diff.forEach((d) => byGroup.set(d.group, [...(byGroup.get(d.group) || []), d]));
-    let red = false;
-
-    const lists = [...byGroup.keys()]
-      .sort((a, b) => a - b)
-      .map((group) => (
-        <div className="PermissionDesk-reviewGroup">
-          <div className="PermissionDesk-reviewHead">
-            {groupBadge(group)} <span className="PermissionDesk-muted">{t('review.count', { count: byGroup.get(group)!.length })}</span>
-          </div>
-          <ul>
-            {bundle(byGroup.get(group)!).map((items) => {
-              const d = items[0];
-              const seen = new Set<string>();
-              const flags = items.flatMap(flagsFor).filter((f) => {
-                const id = f[0] + extractText(f[1]);
-                return seen.has(id) ? false : (seen.add(id), true);
-              });
-              if (flags.some((f) => f[0] === 'red')) red = true;
-              const s = splitKey(d.key);
-              const missing = [
-                ...new Set(
-                  items.flatMap((x) =>
-                    x.op === '+'
-                      ? required(x.key)
-                          .filter((r) => !allowed(group, r))
-                          .map((r) => labelFor(r))
-                      : []
-                  )
-                ),
-              ];
-              return (
-                <li>
-                  <span className={'PermissionDesk-op PermissionDesk-op--' + (d.op === '+' ? 'add' : 'remove')}>{d.op === '+' ? '+' : '−'}</span>
-                  <span>{t(d.op === '+' ? 'review.can' : 'review.cannot', { what: <b>{labelFor(d.key)}</b> })}</span>
-                  {items.length > 1 ? tagsDetail(items) : <span className="PermissionDesk-chip">{tagName(s.tag)}</span>}
-                  {flags.map((f) => (
-                    <span className={'PermissionDesk-flag PermissionDesk-flag--' + f[0]}>
-                      <Icon name="fas fa-triangle-exclamation" /> {f[1]}
-                    </span>
-                  ))}
-                  {missing.length ? <span className="PermissionDesk-why">{t('review.needs', { what: missing.join(', ') })}</span> : null}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ));
-
+    const red = diff.some((d) => flagsFor(d).some((f) => f[0] === 'red'));
     const ctx = desk.context;
     return (
       <div className="Modal-body">
@@ -113,7 +66,7 @@ export class ReviewModal extends FormModal<ReviewAttrs> {
           <p className="PermissionDesk-note PermissionDesk-note--warn">{t('review.skipped', { what: ctx.skipped.map(labelFor).join(', ') })}</p>
         ) : null}
         {this.error ? <p className="PermissionDesk-note PermissionDesk-note--red">{this.error}</p> : null}
-        {lists}
+        {[...byGroup.keys()].sort((a, b) => a - b).map((group) => this.groupList(group, byGroup.get(group)!))}
         <div className="Form-group">
           <label for="pd-note">{t('review.note')}</label>
           <input
@@ -127,20 +80,7 @@ export class ReviewModal extends FormModal<ReviewAttrs> {
             }}
           />
         </div>
-        {red ? (
-          <label className="PermissionDesk-ack">
-            <input
-              type="checkbox"
-              checked={this.ack}
-              onchange={(e: Event) => {
-                this.ack = (e.target as HTMLInputElement).checked;
-              }}
-            />
-            <span>
-              <b>{t('review.ack')}</b> <span className="PermissionDesk-muted">{t('review.ack_help')}</span>
-            </span>
-          </label>
-        ) : null}
+        {red ? this.ackBox() : null}
         <div className="PermissionDesk-modalActions">
           <span className="PermissionDesk-muted">{t('review.via_core')}</span>
           <Button className="Button" onclick={() => this.hide()}>
@@ -151,6 +91,68 @@ export class ReviewModal extends FormModal<ReviewAttrs> {
           </Button>
         </div>
       </div>
+    );
+  }
+
+  groupList(group: number, items: ReturnType<typeof desk.diff>) {
+    return (
+      <div className="PermissionDesk-reviewGroup">
+        <div className="PermissionDesk-reviewHead">
+          {groupBadge(group)} <span className="PermissionDesk-muted">{t('review.count', { count: items.length })}</span>
+        </div>
+        <ul>{bundle(items).map((line) => this.line(group, line))}</ul>
+      </div>
+    );
+  }
+
+  /** One change, or the same change across several tags ("in 6 tags"). */
+  line(group: number, items: ReturnType<typeof desk.diff>) {
+    const d = items[0];
+    const seen = new Set<string>();
+    const flags = items.flatMap(flagsFor).filter((f) => {
+      const id = f[0] + extractText(f[1]);
+      return seen.has(id) ? false : (seen.add(id), true);
+    });
+    const missing = [
+      ...new Set(
+        items.flatMap((x) =>
+          x.op === '+'
+            ? required(x.key)
+                .filter((r) => !allowed(group, r))
+                .map((r) => labelFor(r))
+            : []
+        )
+      ),
+    ];
+    return (
+      <li>
+        <span className={'PermissionDesk-op PermissionDesk-op--' + (d.op === '+' ? 'add' : 'remove')}>{d.op === '+' ? '+' : '−'}</span>
+        <span>{t(d.op === '+' ? 'review.can' : 'review.cannot', { what: <b>{labelFor(d.key)}</b> })}</span>
+        {items.length > 1 ? tagsDetail(items) : <span className="PermissionDesk-chip">{tagName(splitKey(d.key).tag)}</span>}
+        {flags.map((f) => (
+          <span className={'PermissionDesk-flag PermissionDesk-flag--' + f[0]}>
+            <Icon name="fas fa-triangle-exclamation" /> {f[1]}
+          </span>
+        ))}
+        {missing.length ? <span className="PermissionDesk-why">{t('review.needs', { what: missing.join(', ') })}</span> : null}
+      </li>
+    );
+  }
+
+  ackBox() {
+    return (
+      <label className="PermissionDesk-ack">
+        <input
+          type="checkbox"
+          checked={this.ack}
+          onchange={(e: Event) => {
+            this.ack = (e.target as HTMLInputElement).checked;
+          }}
+        />
+        <span>
+          <b>{t('review.ack')}</b> <span className="PermissionDesk-muted">{t('review.ack_help')}</span>
+        </span>
+      </label>
     );
   }
 
@@ -429,44 +431,9 @@ export class PresetModal extends FormModal<PresetAttrs> {
     const add = plan.filter((p) => p.ids.includes(this.attrs.group)).length;
     return (
       <div className="Modal-body">
-        {this.presets().map((p) => (
-          <label className={'PermissionDesk-option' + (this.pick === p.id ? ' is-on' : '')}>
-            <input type="radio" name="pd-preset" checked={this.pick === p.id} onchange={() => (this.pick = p.id)} />
-            <span>
-              <b>{p.name}</b>
-              <span className="PermissionDesk-muted">{p.desc}</span>
-            </span>
-            {p.own ? (
-              <Button
-                className="Button Button--icon Button--link"
-                icon="far fa-trash-can"
-                aria-label={extractText(t('preset.delete'))}
-                onclick={(e: MouseEvent) => {
-                  e.preventDefault();
-                  presetsApi.remove(p.own!).then(() => this.attrs.onChange());
-                  this.attrs.saved = this.attrs.saved.filter((s) => s.id !== p.own);
-                  this.pick = 'trusted';
-                }}
-              />
-            ) : null}
-          </label>
-        ))}
+        {this.presets().map((p) => this.option(p))}
         <p className="PermissionDesk-note PermissionDesk-note--info">{t('preset.count', { add, remove: plan.length - add })}</p>
-        <div className="PermissionDesk-savePreset">
-          <input
-            className="FormControl"
-            maxlength={100}
-            value={this.saveName}
-            placeholder={extractText(t('preset.save_placeholder', { group: groupName(this.attrs.group) }))}
-            aria-label={extractText(t('preset.save_label'))}
-            oninput={(e: InputEvent) => {
-              this.saveName = (e.target as HTMLInputElement).value;
-            }}
-          />
-          <Button className="Button" loading={this.saving} disabled={!this.saveName.trim()} onclick={() => this.saveAsPreset()}>
-            {t('preset.save', { group: groupName(this.attrs.group) })}
-          </Button>
-        </div>
+        {this.saveRow()}
         <div className="PermissionDesk-modalActions">
           <Button className="Button" onclick={() => this.hide()}>
             {t('cancel')}
@@ -475,6 +442,51 @@ export class PresetModal extends FormModal<PresetAttrs> {
             {t('stage', { count: plan.length })}
           </Button>
         </div>
+      </div>
+    );
+  }
+
+  option(p: Preset) {
+    return (
+      <label className={'PermissionDesk-option' + (this.pick === p.id ? ' is-on' : '')}>
+        <input type="radio" name="pd-preset" checked={this.pick === p.id} onchange={() => (this.pick = p.id)} />
+        <span>
+          <b>{p.name}</b>
+          <span className="PermissionDesk-muted">{p.desc}</span>
+        </span>
+        {p.own ? (
+          <Button
+            className="Button Button--icon Button--link"
+            icon="far fa-trash-can"
+            aria-label={extractText(t('preset.delete'))}
+            onclick={(e: MouseEvent) => {
+              e.preventDefault();
+              presetsApi.remove(p.own!).then(() => this.attrs.onChange());
+              this.attrs.saved = this.attrs.saved.filter((s) => s.id !== p.own);
+              this.pick = 'trusted';
+            }}
+          />
+        ) : null}
+      </label>
+    );
+  }
+
+  saveRow() {
+    return (
+      <div className="PermissionDesk-savePreset">
+        <input
+          className="FormControl"
+          maxlength={100}
+          value={this.saveName}
+          placeholder={extractText(t('preset.save_placeholder', { group: groupName(this.attrs.group) }))}
+          aria-label={extractText(t('preset.save_label'))}
+          oninput={(e: InputEvent) => {
+            this.saveName = (e.target as HTMLInputElement).value;
+          }}
+        />
+        <Button className="Button" loading={this.saving} disabled={!this.saveName.trim()} onclick={() => this.saveAsPreset()}>
+          {t('preset.save', { group: groupName(this.attrs.group) })}
+        </Button>
       </div>
     );
   }

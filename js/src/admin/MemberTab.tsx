@@ -7,7 +7,7 @@ import extractText from 'flarum/common/utils/extractText';
 import isExtensionEnabled from 'flarum/admin/utils/isExtensionEnabled';
 import type Mithril from 'mithril';
 import { GUEST, MEMBER, api, desk, required, scoped, t } from './state';
-import { AREAS, collect, groupBadge, groupName, restrictedTags, tagName } from './rows';
+import { AREAS, collect, groupBadge, groupName, restrictedTags, tagName, type Row } from './rows';
 import TagPicker from './TagPicker';
 import { flagBadge } from './GroupsTab';
 
@@ -136,21 +136,37 @@ export default class MemberTab extends Component<{ ui: MemberUi }> {
 
   result() {
     const ui = this.attrs.ui;
-    const d = ui.data;
-    const u = d.user;
-    const scope = ui.scope;
-    const rows = collect().rows.filter((r) => scope === 'global' || r.tagScoped);
-    const can = (key: string) => this.check(scoped(key, scope)).ok;
-    const first = String(u.displayName).split(' ')[0];
-    const guestOnly = !d.isAdmin && d.effectiveGroups.length === 1;
+    const rows = collect().rows.filter((r) => ui.scope === 'global' || r.tagScoped);
+    const first = String(ui.data.user.displayName).split(' ')[0];
+    return (
+      <div>
+        {this.memberHead()}
+        <p className="PermissionDesk-summary">{this.summary(rows, first)}</p>
+        {Object.keys(desk.staged).length ? <p className="PermissionDesk-note PermissionDesk-note--info">{t('member.staged_note')}</p> : null}
+        {AREAS.map((area) =>
+          this.areaSection(
+            area,
+            rows.filter((r) => r.area === area)
+          )
+        )}
+        <p className="PermissionDesk-note PermissionDesk-note--warn">{t('member.limit', { name: first })}</p>
+      </div>
+    );
+  }
 
-    let summary: Mithril.Children;
-    if (d.isAdmin) summary = t('member.sum_admin', { name: first });
-    else if (!u.isEmailConfirmed) summary = t('member.sum_unconfirmed', { name: first });
-    else if (u.suspendedUntil) summary = t('member.sum_suspended', { name: first, date: dayjs(u.suspendedUntil).format('ll') });
-    else if (scope !== 'global') {
-      const mods = rows.filter((r) => r.area === 'moderate' && can(r.key)).length;
-      summary = !can('viewForum')
+  /** One sentence on what this member can do here. */
+  summary(rows: Row[], first: string): Mithril.Children {
+    const d = this.attrs.ui.data;
+    const u = d.user;
+    const scope = this.attrs.ui.scope;
+    const can = (key: string) => this.check(scoped(key, scope)).ok;
+    const mods = rows.filter((r) => r.area === 'moderate' && can(r.key)).length;
+
+    if (d.isAdmin) return t('member.sum_admin', { name: first });
+    if (!u.isEmailConfirmed) return t('member.sum_unconfirmed', { name: first });
+    if (u.suspendedUntil) return t('member.sum_suspended', { name: first, date: dayjs(u.suspendedUntil).format('ll') });
+    if (scope !== 'global') {
+      return !can('viewForum')
         ? t('member.sum_tag_hidden', { name: first, tag: <b>{tagName(scope)}</b> })
         : t('member.sum_tag', {
             name: first,
@@ -159,24 +175,56 @@ export default class MemberTab extends Component<{ ui: MemberUi }> {
             reply: can('discussion.reply') ? 1 : 0,
             mods,
           });
-    } else {
-      const hidden = restrictedTags().filter((tag) => !this.check(scoped('viewForum', tag.id())).ok);
-      const mods = rows.filter((r) => r.area === 'moderate' && can(r.key)).length;
-      summary = t('member.sum', {
-        name: first,
-        start: can('startDiscussion') ? 1 : 0,
-        hidden: hidden.length
-          ? hidden
-              .slice(0, 5)
-              .map((tag) => tagName(tag.id()))
-              .join(', ') + (hidden.length > 5 ? extractText(t('and_more', { count: hidden.length - 5 })) : '')
-          : '',
-        has_hidden: hidden.length ? 1 : 0,
-        mods,
-      });
     }
+    const hidden = restrictedTags().filter((tag) => !this.check(scoped('viewForum', tag.id())).ok);
+    return t('member.sum', {
+      name: first,
+      start: can('startDiscussion') ? 1 : 0,
+      hidden: hidden.length
+        ? hidden
+            .slice(0, 5)
+            .map((tag) => tagName(tag.id()))
+            .join(', ') + (hidden.length > 5 ? extractText(t('and_more', { count: hidden.length - 5 })) : '')
+        : '',
+      has_hidden: hidden.length ? 1 : 0,
+      mods,
+    });
+  }
 
-    const status = [
+  memberHead() {
+    const d = this.attrs.ui.data;
+    const u = d.user;
+    const guestOnly = !d.isAdmin && d.effectiveGroups.length === 1;
+    return (
+      <div className="PermissionDesk-mhead">
+        <span className="PermissionDesk-mavatar">
+          {u.avatarUrl ? <img src={u.avatarUrl} alt="" /> : <span>{String(u.displayName).charAt(0).toUpperCase()}</span>}
+        </span>
+        <div className="PermissionDesk-mtitle">
+          <h2>{u.displayName}</h2>
+          <div className="PermissionDesk-muted">@{u.username}</div>
+          <div className="PermissionDesk-mbadges">
+            {u.groups.length ? u.groups.map((g: number) => groupBadge(g)) : <span className="PermissionDesk-muted">{t('member.no_groups')}</span>}
+            {this.status()}
+          </div>
+          <div className="PermissionDesk-muted PermissionDesk-from">
+            {t('member.from', { groups: d.isAdmin ? groupName(1) : d.effectiveGroups.map(groupName).join(', ') })}
+            {guestOnly ? <b> {t('member.guest_only')}</b> : null}
+          </div>
+        </div>
+        {isExtensionEnabled('ernestdefoe-member-desk') ? (
+          <a className="Button" href={'#/users/' + u.id}>
+            <Icon name="fas fa-address-card" className="Button-icon" />
+            <span className="Button-label">{t('member.open_desk')}</span>
+          </a>
+        ) : null}
+      </div>
+    );
+  }
+
+  status() {
+    const u = this.attrs.ui.data.user;
+    return [
       u.isEmailConfirmed ? (
         <span className="PermissionDesk-chip PermissionDesk-chip--ok">{t('member.verified')}</span>
       ) : (
@@ -188,68 +236,35 @@ export default class MemberTab extends Component<{ ui: MemberUi }> {
         </span>
       ) : null,
     ];
+  }
 
+  areaSection(area: string, list: Row[]) {
+    if (!list.length) return null;
+    const checks = list.map((r) => ({ r, c: this.check(scoped(r.key, this.attrs.ui.scope)) }));
     return (
-      <div>
-        <div className="PermissionDesk-mhead">
-          <span className="PermissionDesk-mavatar">
-            {u.avatarUrl ? <img src={u.avatarUrl} alt="" /> : <span>{String(u.displayName).charAt(0).toUpperCase()}</span>}
-          </span>
-          <div className="PermissionDesk-mtitle">
-            <h2>{u.displayName}</h2>
-            <div className="PermissionDesk-muted">@{u.username}</div>
-            <div className="PermissionDesk-mbadges">
-              {u.groups.length ? u.groups.map((g: number) => groupBadge(g)) : <span className="PermissionDesk-muted">{t('member.no_groups')}</span>}
-              {status}
+      <section className="PermissionDesk-section">
+        <h3>
+          <span>{t('area.' + area)}</span>
+          <span className="PermissionDesk-sectionCount">{t('allowed_of', { on: checks.filter((x) => x.c.ok).length, total: list.length })}</span>
+        </h3>
+        {checks.map(({ r, c }) => (
+          <div className="PermissionDesk-row">
+            <span
+              className={'PermissionDesk-eff ' + (c.ok ? 'PermissionDesk-yes' : 'PermissionDesk-no')}
+              aria-label={extractText(t(c.ok ? 'member.allowed' : 'member.not_allowed'))}
+            >
+              {c.ok ? '✓' : '✗'}
+            </span>
+            <div className="PermissionDesk-rowText">
+              <div className="PermissionDesk-rowLabel">
+                {r.text}
+                {flagBadge(r)}
+              </div>
             </div>
-            <div className="PermissionDesk-muted PermissionDesk-from">
-              {t('member.from', { groups: d.isAdmin ? groupName(1) : d.effectiveGroups.map(groupName).join(', ') })}
-              {guestOnly ? <b> {t('member.guest_only')}</b> : null}
-            </div>
+            <div className={'PermissionDesk-reason' + (c.ok ? ' is-ok' : '')}>{c.why}</div>
           </div>
-          {isExtensionEnabled('ernestdefoe-member-desk') ? (
-            <a className="Button" href={'#/users/' + u.id}>
-              <Icon name="fas fa-address-card" className="Button-icon" />
-              <span className="Button-label">{t('member.open_desk')}</span>
-            </a>
-          ) : null}
-        </div>
-        <p className="PermissionDesk-summary">{summary}</p>
-        {Object.keys(desk.staged).length ? <p className="PermissionDesk-note PermissionDesk-note--info">{t('member.staged_note')}</p> : null}
-        {AREAS.map((area) => {
-          const list = rows.filter((r) => r.area === area);
-          if (!list.length) return null;
-          const checks = list.map((r) => ({ r, c: this.check(scoped(r.key, scope)) }));
-          return (
-            <section className="PermissionDesk-section">
-              <h3>
-                <span>{t('area.' + area)}</span>
-                <span className="PermissionDesk-sectionCount">
-                  {t('allowed_of', { on: checks.filter((x) => x.c.ok).length, total: list.length })}
-                </span>
-              </h3>
-              {checks.map(({ r, c }) => (
-                <div className="PermissionDesk-row">
-                  <span
-                    className={'PermissionDesk-eff ' + (c.ok ? 'PermissionDesk-yes' : 'PermissionDesk-no')}
-                    aria-label={extractText(t(c.ok ? 'member.allowed' : 'member.not_allowed'))}
-                  >
-                    {c.ok ? '✓' : '✗'}
-                  </span>
-                  <div className="PermissionDesk-rowText">
-                    <div className="PermissionDesk-rowLabel">
-                      {r.text}
-                      {flagBadge(r)}
-                    </div>
-                  </div>
-                  <div className={'PermissionDesk-reason' + (c.ok ? ' is-ok' : '')}>{c.why}</div>
-                </div>
-              ))}
-            </section>
-          );
-        })}
-        <p className="PermissionDesk-note PermissionDesk-note--warn">{t('member.limit', { name: first })}</p>
-      </div>
+        ))}
+      </section>
     );
   }
 }

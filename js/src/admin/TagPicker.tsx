@@ -93,9 +93,6 @@ export default class TagPicker extends Component<TagPickerAttrs> {
             .find((i) => i.id === a.value)
             ?.tag.attribute('color')
         : null;
-    const all = this.open ? this.options() : [];
-    const list = all.slice(0, LIMIT);
-    if (this.active >= list.length) this.active = Math.max(0, list.length - 1);
 
     return (
       <div className={'PermissionDesk-picker' + (this.open ? ' is-open' : '')}>
@@ -116,59 +113,71 @@ export default class TagPicker extends Component<TagPickerAttrs> {
           <span className={'PermissionDesk-pickerText' + (a.value ? '' : ' PermissionDesk-muted')}>{current}</span>
           <Icon name="fas fa-caret-down" />
         </button>
-        {this.open ? (
-          <div className="PermissionDesk-pickerPop">
-            <input
-              className="FormControl"
-              type="search"
-              value={this.q}
-              placeholder={extractText(t('picker.search'))}
-              aria-label={extractText(t('picker.search'))}
-              oninput={(e: InputEvent) => {
-                this.q = (e.target as HTMLInputElement).value;
-                this.active = 0;
-              }}
-              onkeydown={(e: KeyboardEvent) => {
-                if (e.key === 'ArrowDown') {
-                  e.preventDefault();
-                  this.active = Math.min(this.active + 1, list.length - 1);
-                } else if (e.key === 'ArrowUp') {
-                  e.preventDefault();
-                  this.active = Math.max(this.active - 1, 0);
-                } else if (e.key === 'Enter') {
-                  e.preventDefault();
-                  if (list[this.active]) this.pick(list[this.active].id);
-                } else if (e.key === 'Escape') {
-                  e.preventDefault();
-                  this.open = false;
-                  (this.element.querySelector('.PermissionDesk-pickerBtn') as HTMLElement | null)?.focus();
-                }
-              }}
-            />
-            <ul role="listbox" aria-label={a.label}>
-              {list.map((o, i) => (
-                <li
-                  role="option"
-                  aria-selected={o.id === a.value ? 'true' : 'false'}
-                  className={(i === this.active ? 'is-active' : '') + (o.id === a.value ? ' is-current' : '')}
-                  style={{ paddingLeft: 10 + o.depth * 16 + 'px' }}
-                  onmousedown={(e: MouseEvent) => e.preventDefault()}
-                  onclick={() => this.pick(o.id)}
-                >
-                  {o.item ? (
-                    <span className="PermissionDesk-tagDot" style={{ background: o.item.tag.attribute('color') || 'var(--pd-faint)' }} />
-                  ) : null}
-                  <span>{o.text}</span>
-                </li>
-              ))}
-            </ul>
-            {!list.length ? <div className="PermissionDesk-muted PermissionDesk-pickerEmpty">{t('picker.none')}</div> : null}
-            {all.length > LIMIT ? (
-              <div className="PermissionDesk-muted PermissionDesk-pickerEmpty">{t('picker.more', { count: all.length - LIMIT })}</div>
-            ) : null}
-          </div>
+        {this.open ? this.popover() : null}
+      </div>
+    );
+  }
+
+  popover() {
+    const all = this.options();
+    const list = all.slice(0, LIMIT);
+    if (this.active >= list.length) this.active = Math.max(0, list.length - 1);
+    return (
+      <div className="PermissionDesk-pickerPop">
+        <input
+          className="FormControl"
+          type="search"
+          value={this.q}
+          placeholder={extractText(t('picker.search'))}
+          aria-label={extractText(t('picker.search'))}
+          oninput={(e: InputEvent) => {
+            this.q = (e.target as HTMLInputElement).value;
+            this.active = 0;
+          }}
+          onkeydown={(e: KeyboardEvent) => this.keydown(e, list)}
+        />
+        <ul role="listbox" aria-label={this.attrs.label}>
+          {list.map((o, i) => this.option(o, i))}
+        </ul>
+        {!list.length ? <div className="PermissionDesk-muted PermissionDesk-pickerEmpty">{t('picker.none')}</div> : null}
+        {all.length > LIMIT ? (
+          <div className="PermissionDesk-muted PermissionDesk-pickerEmpty">{t('picker.more', { count: all.length - LIMIT })}</div>
         ) : null}
       </div>
+    );
+  }
+
+  keydown(e: KeyboardEvent, list: { id: string }[]) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      this.active = Math.min(this.active + 1, list.length - 1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      this.active = Math.max(this.active - 1, 0);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (list[this.active]) this.pick(list[this.active].id);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      this.open = false;
+      (this.element.querySelector('.PermissionDesk-pickerBtn') as HTMLElement | null)?.focus();
+    }
+  }
+
+  option(o: { id: string; text: string; depth: number; item: TagItem | null }, i: number) {
+    const a = this.attrs;
+    return (
+      <li
+        role="option"
+        aria-selected={o.id === a.value ? 'true' : 'false'}
+        className={(i === this.active ? 'is-active' : '') + (o.id === a.value ? ' is-current' : '')}
+        style={{ paddingLeft: 10 + o.depth * 16 + 'px' }}
+        onmousedown={(e: MouseEvent) => e.preventDefault()}
+        onclick={() => this.pick(o.id)}
+      >
+        {o.item ? <span className="PermissionDesk-tagDot" style={{ background: o.item.tag.attribute('color') || 'var(--pd-faint)' }} /> : null}
+        <span>{o.text}</span>
+      </li>
     );
   }
 }

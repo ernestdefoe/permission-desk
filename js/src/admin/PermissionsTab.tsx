@@ -132,58 +132,61 @@ export default class PermissionsTab extends Component<{ ui: PermissionsUi }> {
     // With many tags, only the ones that differ from Everywhere (or that the admin picked) are listed.
     const shown = many ? tags.filter((tag) => differs(tag.id()) || ui.extra.includes(tag.id())) : tags;
     const differing = tags.filter((tag) => differs(tag.id()));
-    const same = tags.length - differing.length;
     const scopes: [string, Mithril.Children][] = [
       ['global', t('scope.global')],
       ...shown.map((tag) => [tag.id(), t('scope.in_tag', { tag: tagName(tag.id()) })] as [string, Mithril.Children]),
     ];
-    const all = groups().map((g) => Number(g.id()));
     return (
       <div className="PermissionDesk-editor">
-        {scopes.map(([scope, title]) => {
-          const key = scoped(r.key, scope);
-          const set = desk.cur(key);
+        {scopes.map(([scope, title]) => this.scopeToggles(r, scope, title))}
+        {many ? this.editorFoot(r, shown, differing, tags.length - differing.length) : null}
+      </div>
+    );
+  }
+
+  scopeToggles(r: Row, scope: string, title: Mithril.Children) {
+    const key = scoped(r.key, scope);
+    const set = desk.cur(key);
+    return (
+      <div className="PermissionDesk-scope">
+        <b>{title}</b>
+        {groups().map((group) => {
+          const g = Number(group.id());
+          if (g === GUEST && !r.allowGuest) return null;
+          const on = g === ADMIN || set.includes(g);
           return (
-            <div className="PermissionDesk-scope">
-              <b>{title}</b>
-              {all.map((g) => {
-                if (g === GUEST && !r.allowGuest) return null;
-                const on = g === ADMIN || set.includes(g);
-                return (
-                  <button
-                    className={'PermissionDesk-gtoggle' + (on ? ' is-on' : '')}
-                    aria-pressed={on ? 'true' : 'false'}
-                    disabled={g === ADMIN}
-                    title={g === ADMIN ? extractText(t('admins_always')) : undefined}
-                    onclick={() => desk.stage(key, on ? set.filter((x) => x !== g) : [...set, g])}
-                  >
-                    {g === GUEST ? t('guests_everyone') : groupName(g)}
-                  </button>
-                );
-              })}
-            </div>
+            <button
+              className={'PermissionDesk-gtoggle' + (on ? ' is-on' : '')}
+              aria-pressed={on ? 'true' : 'false'}
+              disabled={g === ADMIN}
+              title={g === ADMIN ? extractText(t('admins_always')) : undefined}
+              onclick={() => desk.stage(key, on ? set.filter((x) => x !== g) : [...set, g])}
+            >
+              {g === GUEST ? t('guests_everyone') : groupName(g)}
+            </button>
           );
         })}
-        {many ? (
-          <div className="PermissionDesk-editorFoot">
-            <span className="PermissionDesk-muted">{t('tags.same_in', { count: same })}</span>
-            <TagPicker
-              value=""
-              restricted
-              exclude={shown.map((tag) => tag.id())}
-              placeholder={extractText(t('tags.change_in'))}
-              label={extractText(t('tags.change_in'))}
-              onchange={(id: string) => ui.extra.push(id)}
-            />
-            {differing.length ? (
-              <Button
-                className="Button Button--small"
-                onclick={() => differing.forEach((tag) => desk.stage(scoped(r.key, tag.id()), desk.cur(r.key)))}
-              >
-                {t('tags.match_all', { count: differing.length })}
-              </Button>
-            ) : null}
-          </div>
+      </div>
+    );
+  }
+
+  editorFoot(r: Row, shown: any[], differing: any[], same: number) {
+    const ui = this.attrs.ui;
+    return (
+      <div className="PermissionDesk-editorFoot">
+        <span className="PermissionDesk-muted">{t('tags.same_in', { count: same })}</span>
+        <TagPicker
+          value=""
+          restricted
+          exclude={shown.map((tag) => tag.id())}
+          placeholder={extractText(t('tags.change_in'))}
+          label={extractText(t('tags.change_in'))}
+          onchange={(id: string) => ui.extra.push(id)}
+        />
+        {differing.length ? (
+          <Button className="Button Button--small" onclick={() => differing.forEach((tag) => desk.stage(scoped(r.key, tag.id()), desk.cur(r.key)))}>
+            {t('tags.match_all', { count: differing.length })}
+          </Button>
         ) : null}
       </div>
     );

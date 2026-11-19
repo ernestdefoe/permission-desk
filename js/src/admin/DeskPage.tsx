@@ -83,35 +83,31 @@ export default class DeskPage extends AdminPage {
     };
   }
 
+  tabs(tab: Tab) {
+    const go = (to: Tab) => (to === 'groups' ? '#' + app.route('permissions') : '#' + app.route('permissionDesk.tab', { tab: to }));
+    return (
+      <div className="PermissionDesk-top">
+        <nav className="PermissionDesk-tabs" role="tablist" aria-label={String(t('page.title'))}>
+          {TABS.filter((to) => to !== 'tags' || tagsOn()).map((to) => (
+            <a role="tab" aria-selected={tab === to ? 'true' : 'false'} className={'PermissionDesk-tab' + (tab === to ? ' is-on' : '')} href={go(to)}>
+              {t('tab.' + to)}
+            </a>
+          ))}
+        </nav>
+        <a className="Button Button--small PermissionDesk-classic" href={'#' + app.route('permissionDesk.classic')} title={String(t('classic_help'))}>
+          {t('classic')}
+        </a>
+      </div>
+    );
+  }
+
   content(): Mithril.Children {
     if (tagsOn() && !tagsReady) return <LoadingIndicator />;
     const tab = this.tab();
     const n = desk.diff().length;
-    const go = (to: Tab) => (to === 'groups' ? '#' + app.route('permissions') : '#' + app.route('permissionDesk.tab', { tab: to }));
-
     return (
       <div className="PermissionDesk">
-        <div className="PermissionDesk-top">
-          <nav className="PermissionDesk-tabs" role="tablist" aria-label={String(t('page.title'))}>
-            {TABS.filter((to) => to !== 'tags' || tagsOn()).map((to) => (
-              <a
-                role="tab"
-                aria-selected={tab === to ? 'true' : 'false'}
-                className={'PermissionDesk-tab' + (tab === to ? ' is-on' : '')}
-                href={go(to)}
-              >
-                {t('tab.' + to)}
-              </a>
-            ))}
-          </nav>
-          <a
-            className="Button Button--small PermissionDesk-classic"
-            href={'#' + app.route('permissionDesk.classic')}
-            title={String(t('classic_help'))}
-          >
-            {t('classic')}
-          </a>
-        </div>
+        {this.tabs(tab)}
 
         {tab === 'groups' ? (
           <GroupsTab

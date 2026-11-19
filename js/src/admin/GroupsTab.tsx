@@ -127,79 +127,11 @@ export default class GroupsTab extends Component<GroupsTabAttrs> {
       <div className="PermissionDesk-groups">
         <div className="PermissionDesk-railWrap">{this.rail()}</div>
         <div className="PermissionDesk-main">
-          <div className="PermissionDesk-ghead">
-            <span className="PermissionDesk-gicon" style={{ background: groupColor(g) || 'var(--pd-faint)' }}>
-              {group?.icon() ? <Icon name={group.icon()} /> : groupName(g).charAt(0)}
-            </span>
-            <div className="PermissionDesk-gtitle">
-              <h2>{g === GUEST ? t('guests_everyone') : groupName(g)}</h2>
-              <div className="PermissionDesk-muted">
-                {g === GUEST ? t('guests_help') : g === MEMBER ? t('members_help') : g === ADMIN ? t('admins_help') : t('group_help')}
-              </div>
-            </div>
-            <div className="PermissionDesk-gactions">
-              <Button
-                className="Button"
-                icon="fas fa-code-compare"
-                onclick={() => {
-                  ui.compare = true;
-                  ui.a = g;
-                  ui.b = g === MEMBER ? 4 : MEMBER;
-                }}
-              >
-                {t('compare')}
-              </Button>
-              <Button
-                className="Button"
-                icon="far fa-copy"
-                disabled={g === ADMIN}
-                onclick={() => app.modal.show(CopyModal, { to: g, groupIds: groups().map((x) => Number(x.id())) })}
-              >
-                {t('copy.button')}
-              </Button>
-              <Button
-                className="Button"
-                icon="fas fa-wand-magic-sparkles"
-                disabled={g === ADMIN}
-                onclick={() => app.modal.show(PresetModal, { group: g, saved: this.attrs.presets(), onChange: this.attrs.reloadPresets })}
-              >
-                {t('preset.button')}
-              </Button>
-              {group && g > MEMBER && g !== ADMIN ? (
-                <Button
-                  className="Button Button--icon"
-                  icon="fas fa-pencil"
-                  aria-label={extractText(t('edit_group'))}
-                  onclick={() => app.modal.show(EditGroupModal, { group })}
-                />
-              ) : null}
-            </div>
-          </div>
+          {this.groupHead(g, group)}
 
           {g === ADMIN ? <p className="PermissionDesk-note PermissionDesk-note--info">{t('admins_note')}</p> : null}
 
-          <div className="PermissionDesk-toolbar">
-            <input
-              className="FormControl PermissionDesk-search"
-              type="search"
-              value={ui.q}
-              placeholder={extractText(t('search_placeholder'))}
-              aria-label={extractText(t('search_label'))}
-              oninput={(e: InputEvent) => (ui.q = (e.target as HTMLInputElement).value)}
-            />
-            {tags.length ? (
-              <TagPicker value={ui.scope} global restricted label={extractText(t('scope.label'))} onchange={(id: string) => (ui.scope = id)} />
-            ) : null}
-            <select
-              className="FormControl"
-              aria-label={extractText(t('by.label'))}
-              value={ui.by}
-              onchange={(e: Event) => (ui.by = (e.target as HTMLSelectElement).value as any)}
-            >
-              <option value="area">{t('by.area')}</option>
-              <option value="ext">{t('by.ext')}</option>
-            </select>
-          </div>
+          {this.groupToolbar(tags)}
 
           {ui.scope !== 'global' ? (
             <p className="PermissionDesk-note PermissionDesk-note--info">{t('scope.note', { tag: <b>{tagName(ui.scope)}</b> })}</p>
@@ -211,6 +143,94 @@ export default class GroupsTab extends Component<GroupsTabAttrs> {
           {ui.scope === 'global' && !q && isExtensionEnabled('flarum-tags') ? this.tagSummary(tags) : null}
           {ui.scope === 'global' && !q ? this.settings() : null}
         </div>
+      </div>
+    );
+  }
+
+  groupHead(g: number, group: any) {
+    return (
+      <div className="PermissionDesk-ghead">
+        <span className="PermissionDesk-gicon" style={{ background: groupColor(g) || 'var(--pd-faint)' }}>
+          {group?.icon() ? <Icon name={group.icon()} /> : groupName(g).charAt(0)}
+        </span>
+        <div className="PermissionDesk-gtitle">
+          <h2>{g === GUEST ? t('guests_everyone') : groupName(g)}</h2>
+          <div className="PermissionDesk-muted">
+            {g === GUEST ? t('guests_help') : g === MEMBER ? t('members_help') : g === ADMIN ? t('admins_help') : t('group_help')}
+          </div>
+        </div>
+        {this.groupActions(g, group)}
+      </div>
+    );
+  }
+
+  groupActions(g: number, group: any) {
+    const ui = this.attrs.ui;
+    return (
+      <div className="PermissionDesk-gactions">
+        <Button
+          className="Button"
+          icon="fas fa-code-compare"
+          onclick={() => {
+            ui.compare = true;
+            ui.a = g;
+            ui.b = g === MEMBER ? 4 : MEMBER;
+          }}
+        >
+          {t('compare')}
+        </Button>
+        <Button
+          className="Button"
+          icon="far fa-copy"
+          disabled={g === ADMIN}
+          onclick={() => app.modal.show(CopyModal, { to: g, groupIds: groups().map((x) => Number(x.id())) })}
+        >
+          {t('copy.button')}
+        </Button>
+        <Button
+          className="Button"
+          icon="fas fa-wand-magic-sparkles"
+          disabled={g === ADMIN}
+          onclick={() => app.modal.show(PresetModal, { group: g, saved: this.attrs.presets(), onChange: this.attrs.reloadPresets })}
+        >
+          {t('preset.button')}
+        </Button>
+        {group && g > MEMBER && g !== ADMIN ? (
+          <Button
+            className="Button Button--icon"
+            icon="fas fa-pencil"
+            aria-label={extractText(t('edit_group'))}
+            onclick={() => app.modal.show(EditGroupModal, { group })}
+          />
+        ) : null}
+      </div>
+    );
+  }
+
+  groupToolbar(tags: any[]) {
+    const ui = this.attrs.ui;
+    return (
+      <div className="PermissionDesk-toolbar">
+        <input
+          className="FormControl PermissionDesk-search"
+          type="search"
+          value={ui.q}
+          placeholder={extractText(t('search_placeholder'))}
+          aria-label={extractText(t('search_label'))}
+          oninput={(e: InputEvent) => (ui.q = (e.target as HTMLInputElement).value)}
+        />
+        {tags.length ? (
+          <TagPicker value={ui.scope} global restricted label={extractText(t('scope.label'))} onchange={(id: string) => (ui.scope = id)} />
+        ) : null}
+        <select
+          className="FormControl"
+          aria-label={extractText(t('by.label'))}
+          value={ui.by}
+          onchange={(e: Event) => (ui.by = (e.target as HTMLSelectElement).value as any)}
+        >
+          <option value="area">{t('by.area')}</option>
+          <option value="ext">{t('by.ext')}</option>
+        </select>
       </div>
     );
   }
@@ -377,87 +397,7 @@ export default class GroupsTab extends Component<GroupsTabAttrs> {
 
   compareView() {
     const ui = this.attrs.ui;
-    const all = groups().map((g) => Number(g.id()));
-    const pick = (value: number, set: (v: number) => void, label: string) => (
-      <select
-        className="FormControl"
-        aria-label={label}
-        value={String(value)}
-        onchange={(e: Event) => set(Number((e.target as HTMLSelectElement).value))}
-      >
-        {all.map((id) => (
-          <option value={String(id)}>{id === GUEST ? t('guests_everyone') : groupName(id)}</option>
-        ))}
-      </select>
-    );
-    const cell = (g: number, key: string) => {
-      const rs = rowState(g, key);
-      if (rs.st === 'on' || rs.st === 'lock') return <span className="PermissionDesk-yes">✓</span>;
-      if (rs.st === 'inh')
-        return (
-          <span className="PermissionDesk-inh" title={extractText(t('via', { group: groupName(rs.via!) }))}>
-            ✓ <small>{groupName(rs.via!)}</small>
-          </span>
-        );
-      return <span className="PermissionDesk-no">–</span>;
-    };
-    const scopes: [string, Mithril.Children][] = [
-      ['global', t('scope.global')],
-      ...restrictedTags().map((tag) => [tag.id(), t('scope.in_tag', { tag: tagName(tag.id()) })] as [string, Mithril.Children]),
-    ];
-    let differences = 0;
-    const body: Mithril.Children[] = [];
-    const many = scopes.length - 1 > MANY_TAGS;
-    scopes.forEach(([scope, title]) => {
-      const part: Mithril.Children[] = [];
-      let here = 0;
-      collect()
-        .rows.filter((r) => scope === 'global' || r.tagScoped)
-        .forEach((r) => {
-          const key = scoped(r.key, scope);
-          const d = allowed(ui.a, key) !== allowed(ui.b, key);
-          if (d) here++;
-          if (ui.onlyDiff && !d) return;
-          part.push(
-            <tr className={d ? 'is-diff' : ''}>
-              <td>
-                {r.text} {flagBadge(r)}
-              </td>
-              <td className="PermissionDesk-c">{cell(ui.a, key)}</td>
-              <td className="PermissionDesk-c">{cell(ui.b, key)}</td>
-            </tr>
-          );
-        });
-      differences += here;
-      if (!part.length) return;
-      // With many tags each one is a single line until opened, so the page stays short.
-      if (many && scope !== 'global') {
-        const open = !!ui.cmpOpen[scope];
-        body.push(
-          <tr className="PermissionDesk-subhead">
-            <td colspan={3}>
-              <button
-                className="PermissionDesk-subheadBtn"
-                aria-expanded={open ? 'true' : 'false'}
-                onclick={() => (open ? delete ui.cmpOpen[scope] : (ui.cmpOpen[scope] = true))}
-              >
-                <Icon name={open ? 'fas fa-caret-down' : 'fas fa-caret-right'} /> {title}
-                <span className="PermissionDesk-muted"> · {t('differences_short', { count: here })}</span>
-              </button>
-            </td>
-          </tr>,
-          ...(open ? part : [])
-        );
-        return;
-      }
-      body.push(
-        <tr className="PermissionDesk-subhead">
-          <td colspan={3}>{title}</td>
-        </tr>,
-        ...part
-      );
-    });
-
+    const { body, differences } = this.compareBody();
     return (
       <div className="PermissionDesk-compare">
         <div className="PermissionDesk-toolbar">
@@ -466,9 +406,9 @@ export default class GroupsTab extends Component<GroupsTabAttrs> {
           </Button>
         </div>
         <div className="PermissionDesk-toolbar">
-          {pick(ui.a, (v) => (ui.a = v), extractText(t('compare_a')))}
+          {this.comparePick(ui.a, (v) => (ui.a = v), extractText(t('compare_a')))}
           <span className="PermissionDesk-muted">{t('vs')}</span>
-          {pick(ui.b, (v) => (ui.b = v), extractText(t('compare_b')))}
+          {this.comparePick(ui.b, (v) => (ui.b = v), extractText(t('compare_b')))}
           <label className="PermissionDesk-check">
             <input type="checkbox" checked={ui.onlyDiff} onchange={(e: Event) => (ui.onlyDiff = (e.target as HTMLInputElement).checked)} />{' '}
             {t('only_diff')}
@@ -480,28 +420,132 @@ export default class GroupsTab extends Component<GroupsTabAttrs> {
         <p className="PermissionDesk-note PermissionDesk-note--info">
           {t('differences', { count: differences, a: groupName(ui.a), b: groupName(ui.b), tags: restrictedTags().length })}
         </p>
-        <div className="PermissionDesk-tableWrap">
-          <table className="PermissionDesk-cmp">
-            <thead>
+        {this.compareTable(body)}
+      </div>
+    );
+  }
+
+  comparePick(value: number, set: (v: number) => void, label: string) {
+    return (
+      <select
+        className="FormControl"
+        aria-label={label}
+        value={String(value)}
+        onchange={(e: Event) => set(Number((e.target as HTMLSelectElement).value))}
+      >
+        {groups().map((g) => {
+          const id = Number(g.id());
+          return <option value={String(id)}>{id === GUEST ? t('guests_everyone') : groupName(id)}</option>;
+        })}
+      </select>
+    );
+  }
+
+  compareCell(g: number, key: string) {
+    const rs = rowState(g, key);
+    if (rs.st === 'on' || rs.st === 'lock') return <span className="PermissionDesk-yes">✓</span>;
+    if (rs.st === 'inh')
+      return (
+        <span className="PermissionDesk-inh" title={extractText(t('via', { group: groupName(rs.via!) }))}>
+          ✓ <small>{groupName(rs.via!)}</small>
+        </span>
+      );
+    return <span className="PermissionDesk-no">–</span>;
+  }
+
+  /** Every scope's rows (Everywhere, then each restricted tag), and how many differ in all. */
+  compareBody(): { body: Mithril.Children[]; differences: number } {
+    const scopes: [string, Mithril.Children][] = [
+      ['global', t('scope.global')],
+      ...restrictedTags().map((tag) => [tag.id(), t('scope.in_tag', { tag: tagName(tag.id()) })] as [string, Mithril.Children]),
+    ];
+    const many = scopes.length - 1 > MANY_TAGS;
+    let differences = 0;
+    const body: Mithril.Children[] = [];
+    scopes.forEach(([scope, title]) => {
+      const { part, here } = this.compareRows(scope);
+      differences += here;
+      if (!part.length) return;
+      // With many tags each one is a single line until opened, so the page stays short.
+      if (many && scope !== 'global') body.push(this.compareToggle(scope, title, here), ...(this.attrs.ui.cmpOpen[scope] ? part : []));
+      else
+        body.push(
+          <tr className="PermissionDesk-subhead">
+            <td colspan={3}>{title}</td>
+          </tr>,
+          ...part
+        );
+    });
+    return { body, differences };
+  }
+
+  compareRows(scope: string): { part: Mithril.Children[]; here: number } {
+    const ui = this.attrs.ui;
+    const part: Mithril.Children[] = [];
+    let here = 0;
+    collect()
+      .rows.filter((r) => scope === 'global' || r.tagScoped)
+      .forEach((r) => {
+        const key = scoped(r.key, scope);
+        const d = allowed(ui.a, key) !== allowed(ui.b, key);
+        if (d) here++;
+        if (ui.onlyDiff && !d) return;
+        part.push(
+          <tr className={d ? 'is-diff' : ''}>
+            <td>
+              {r.text} {flagBadge(r)}
+            </td>
+            <td className="PermissionDesk-c">{this.compareCell(ui.a, key)}</td>
+            <td className="PermissionDesk-c">{this.compareCell(ui.b, key)}</td>
+          </tr>
+        );
+      });
+    return { part, here };
+  }
+
+  compareToggle(scope: string, title: Mithril.Children, here: number) {
+    const ui = this.attrs.ui;
+    const open = !!ui.cmpOpen[scope];
+    return (
+      <tr className="PermissionDesk-subhead">
+        <td colspan={3}>
+          <button
+            className="PermissionDesk-subheadBtn"
+            aria-expanded={open ? 'true' : 'false'}
+            onclick={() => (open ? delete ui.cmpOpen[scope] : (ui.cmpOpen[scope] = true))}
+          >
+            <Icon name={open ? 'fas fa-caret-down' : 'fas fa-caret-right'} /> {title}
+            <span className="PermissionDesk-muted"> · {t('differences_short', { count: here })}</span>
+          </button>
+        </td>
+      </tr>
+    );
+  }
+
+  compareTable(body: Mithril.Children[]) {
+    const ui = this.attrs.ui;
+    return (
+      <div className="PermissionDesk-tableWrap">
+        <table className="PermissionDesk-cmp">
+          <thead>
+            <tr>
+              <th>{t('permission')}</th>
+              <th className="PermissionDesk-c">{groupBadge(ui.a)}</th>
+              <th className="PermissionDesk-c">{groupBadge(ui.b)}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {body.length ? (
+              body
+            ) : (
               <tr>
-                <th>{t('permission')}</th>
-                <th className="PermissionDesk-c">{groupBadge(ui.a)}</th>
-                <th className="PermissionDesk-c">{groupBadge(ui.b)}</th>
+                <td colspan={3} className="PermissionDesk-muted">
+                  {t('no_differences')}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {body.length ? (
-                body
-              ) : (
-                <tr>
-                  <td colspan={3} className="PermissionDesk-muted">
-                    {t('no_differences')}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            )}
+          </tbody>
+        </table>
       </div>
     );
   }
