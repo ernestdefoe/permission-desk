@@ -112,9 +112,12 @@ class PermissionDeskTest extends TestCase
     #[Test]
     public function only_admins_can_use_any_endpoint(): void
     {
-        foreach ([['GET', '/history'], ['GET', '/members/2'], ['GET', '/presets'], ['GET', '/changesets/1/undo']] as [$method, $path]) {
+        foreach ([['GET', '/history'], ['POST', '/check'], ['GET', '/members/2'], ['POST', '/changesets/1/undo'], ['POST', '/changesets/1/restore']] as [$method, $path]) {
             $this->assertEquals(403, $this->call($method, $path, 3)->getStatusCode(), $path);
             $this->assertEquals(403, $this->call($method, $path, 2)->getStatusCode(), $path);
+        }
+        foreach ([3, 2] as $as) {
+            $this->assertEquals(403, $this->send($this->request('GET', '/api/permission-desk-presets', ['authenticatedAs' => $as]))->getStatusCode());
         }
 
         $this->assertEquals(403, $this->save([['discussion.hidePosts', [4], [4, 10]]], [], 3)->getStatusCode());
@@ -221,7 +224,7 @@ class PermissionDeskTest extends TestCase
         // discussion.lock changes again afterwards.
         $this->save([['discussion.lock', [4], [4, 10]]]);
 
-        $plan = $this->json($this->call('GET', "/changesets/$first/undo"));
+        $plan = $this->json($this->call('POST', "/changesets/$first/undo"));
         $this->assertEquals(['discussion.lock'], $plan['skipped']);
         $this->assertEquals([['permission' => 'discussion.hidePosts', 'before' => [4, 10], 'after' => [4]]], $plan['changes']);
 
@@ -237,7 +240,7 @@ class PermissionDeskTest extends TestCase
         $this->assertEquals($this->json($r)['changeset'], $byId[$first]['undoneBy']);
 
         // Undone once is undone for good.
-        $this->assertEquals(422, $this->call('GET', "/changesets/$first/undo")->getStatusCode());
+        $this->assertEquals(422, $this->call('POST', "/changesets/$first/undo")->getStatusCode());
         $this->assertEquals(422, $this->save([['discussion.hidePosts', [4], [4, 10]]], ['kind' => 'undo', 'undoOf' => $first])->getStatusCode());
     }
 
@@ -248,7 +251,7 @@ class PermissionDeskTest extends TestCase
         $this->save([['discussion.lock', [4], [4, 10]], ['discussion.hidePosts', [4], []]]);
         $this->save([['discussion.lock', [4, 10], [10]]]);
 
-        $plan = $this->json($this->call('GET', "/changesets/$a/restore"));
+        $plan = $this->json($this->call('POST', "/changesets/$a/restore"));
         $byKey = array_column($plan['changes'], null, 'permission');
 
         $this->assertEquals([10], $byKey['discussion.lock']['before']);
@@ -262,13 +265,16 @@ class PermissionDeskTest extends TestCase
     {
         $db = $this->app()->getContainer()->make(ConnectionInterface::class);
 
-        // First look takes the snapshot.
+        // History only reads; the check is its own POST, which the History tab sends when it opens.
+        $this->assertNull($this->json($this->call('POST', '/check'))['changeset'], 'the first check only takes the snapshot');
         $this->assertEquals([], $this->json($this->call('GET', '/history'))['changesets']);
 
         // Someone uses core's classic grid / a migration writes directly.
         $db->table('group_permission')->insert(['permission' => 'discussion.sticky', 'group_id' => 10]);
         $db->table('group_permission')->where('permission', 'startDiscussion')->delete();
 
+        $this->assertEquals([], $this->json($this->call('GET', '/history'))['changesets'], 'a GET never writes');
+        $this->assertIsInt($this->json($this->call('POST', '/check'))['changeset']);
         $sets = $this->json($this->call('GET', '/history'))['changesets'];
         $this->assertCount(1, $sets);
         $this->assertEquals('outside', $sets[0]['kind']);
@@ -278,6 +284,7 @@ class PermissionDeskTest extends TestCase
         $this->assertEquals(['permission' => 'startDiscussion', 'before' => [3], 'after' => []], $byKey['startDiscussion']);
 
         // Seen once, logged once.
+        $this->assertNull($this->json($this->call('POST', '/check'))['changeset']);
         $this->assertCount(1, $this->json($this->call('GET', '/history'))['changesets']);
 
         // A change outside, then a save: the outside entry comes first, then ours.
@@ -297,7 +304,7 @@ class PermissionDeskTest extends TestCase
     public function outside_changes_are_kept_even_when_the_save_conflicts(): void
     {
         $db = $this->app()->getContainer()->make(ConnectionInterface::class);
-        $this->call('GET', '/history'); // takes the snapshot
+        $this->call('POST', '/check'); // takes the snapshot
 
         // Changed outside, and it's the very permission the admin's stale page is about to save.
         $db->table('group_permission')->insert(['permission' => 'discussion.lock', 'group_id' => 10]);
@@ -314,16 +321,39 @@ class PermissionDeskTest extends TestCase
     }
 
     #[Test]
+    public function refused_saves_say_why(): void
+    {
+        // flarum/testing doesn't load extension locales, so the key stands in for the text here.
+        $r = $this->call('POST', '/changesets', 1, ['changes' => []]);
+        $this->assertEquals(422, $r->getStatusCode());
+        $this->assertMatchesRegularExpression('/Nothing to save\.|api\.nothing_to_save/', (string) $r->getBody());
+
+        $r = $this->save([['discussion.lock', [], [999]]]);
+        $this->assertEquals(422, $r->getStatusCode());
+        $this->assertMatchesRegularExpression('/There is no group 999\.|api\.no_such_group/', (string) $r->getBody());
+    }
+
+    #[Test]
     public function presets_can_be_saved_listed_and_deleted(): void
     {
-        $created = $this->json($this->call('POST', '/presets', 1, ['name' => 'Helpers', 'permissions' => ['discussion.lock', 'discussion.editPosts', 'bad key!']]));
-        $this->assertEquals(['discussion.lock', 'discussion.editPosts'], $created['permissions']);
+        $preset = fn (array $attributes) => $this->send($this->request('POST', '/api/permission-desk-presets', [
+            'authenticatedAs' => 1,
+            'json' => ['data' => ['type' => 'permission-desk-presets', 'attributes' => $attributes]],
+        ]));
+        $list = fn () => $this->json($this->send($this->request('GET', '/api/permission-desk-presets', ['authenticatedAs' => 1])))['data'];
 
-        $this->assertEquals('Helpers', $this->json($this->call('GET', '/presets'))[0]['name']);
-        $this->assertEquals(422, $this->call('POST', '/presets', 1, ['name' => '', 'permissions' => []])->getStatusCode());
+        $r = $preset(['name' => ' Helpers ', 'permissions' => ['discussion.lock', 'discussion.editPosts', 'bad key!']]);
+        $this->assertEquals(201, $r->getStatusCode(), (string) $r->getBody());
+        $created = $this->json($r)['data'];
+        $this->assertEquals('Helpers', $created['attributes']['name']);
+        $this->assertEquals(['discussion.lock', 'discussion.editPosts'], $created['attributes']['permissions']);
 
-        $this->assertEquals(204, $this->call('DELETE', '/presets/'.$created['id'])->getStatusCode());
-        $this->assertEquals([], $this->json($this->call('GET', '/presets')));
+        $this->assertEquals('Helpers', $list()[0]['attributes']['name']);
+        $this->assertEquals(422, $preset(['name' => ' ', 'permissions' => []])->getStatusCode());
+        $this->assertEquals(422, $preset(['name' => str_repeat('x', 101), 'permissions' => []])->getStatusCode());
+
+        $this->assertEquals(204, $this->send($this->request('DELETE', '/api/permission-desk-presets/'.$created['id'], ['authenticatedAs' => 1]))->getStatusCode());
+        $this->assertEquals([], $list());
     }
 
     #[Test]
@@ -340,7 +370,7 @@ class PermissionDeskTest extends TestCase
             return $n;
         };
 
-        $this->call('GET', '/history');
+        $this->call('POST', '/check');
         $this->save([['discussion.lock', [], [4]]]);
         $one = $count('/history');
 
@@ -382,7 +412,7 @@ class PermissionDeskTest extends TestCase
             return $n;
         };
 
-        $this->call('GET', '/history');
+        $this->call('POST', '/check');
         $small = $queries($rows(2, [], [3]));
         $big = $queries(array_slice($rows(152, [], [3]), 6));
 

@@ -4,7 +4,7 @@ import Button from 'flarum/common/components/Button';
 import Icon from 'flarum/common/components/Icon';
 import extractText from 'flarum/common/utils/extractText';
 import type Mithril from 'mithril';
-import { ADMIN, GUEST, MEMBER, allowed, api, desk, required, scoped, splitKey, t } from './state';
+import { ADMIN, GUEST, MEMBER, allowed, api, desk, presetsApi, required, scoped, splitKey, t } from './state';
 import { collect, groupBadge, groupName, labelFor, restrictedTags, rowFor, tagName } from './rows';
 import { bundle, tagsDetail } from './bundle';
 
@@ -443,7 +443,7 @@ export class PresetModal extends FormModal<PresetAttrs> {
                 aria-label={extractText(t('preset.delete'))}
                 onclick={(e: MouseEvent) => {
                   e.preventDefault();
-                  api('DELETE', '/presets/' + p.own).then(() => this.attrs.onChange());
+                  presetsApi.remove(p.own!).then(() => this.attrs.onChange());
                   this.attrs.saved = this.attrs.saved.filter((s) => s.id !== p.own);
                   this.pick = 'trusted';
                 }}
@@ -485,8 +485,9 @@ export class PresetModal extends FormModal<PresetAttrs> {
       .rows.filter((r) => desk.cur(r.key).includes(g))
       .map((r) => r.key);
     this.saving = true;
-    api('POST', '/presets', { name: this.saveName.trim(), permissions: keys })
-      .then((p: any) => {
+    presetsApi
+      .create(this.saveName.trim(), keys)
+      .then((p) => {
         this.attrs.saved = [...this.attrs.saved, p];
         this.pick = 'own' + p.id;
         this.saveName = '';

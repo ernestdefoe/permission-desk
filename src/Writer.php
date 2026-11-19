@@ -2,11 +2,12 @@
 
 namespace ErnestDefoe\PermissionDesk;
 
+use ErnestDefoe\PermissionDesk\Audit\AuditRecorder;
 use Flarum\Api\Controller\SetPermissionController;
-use Flarum\Extension\ExtensionManager;
 use Flarum\Foundation\ValidationException;
 use Flarum\Group\Group;
 use Flarum\Http\RequestUtil;
+use Flarum\Locale\TranslatorInterface;
 use Flarum\User\User;
 use Illuminate\Database\ConnectionInterface;
 use Laminas\Diactoros\ServerRequest;
@@ -18,7 +19,7 @@ use Laminas\Diactoros\ServerRequest;
  * touches group_permission.
  *
  * flarum/audit logs core's endpoint with middleware on the HTTP route, which a direct call skips,
- * so we write the same `permission_changed` entry it would.
+ * so each change also goes to the AuditRecorder (a no-op unless flarum/audit is enabled).
  */
 class Writer
 {
@@ -30,7 +31,8 @@ class Writer
         protected History $history,
         protected Watcher $watcher,
         protected SetPermissionController $controller,
-        protected ExtensionManager $extensions,
+        protected AuditRecorder $audit,
+        protected TranslatorInterface $translator,
     ) {
     }
 
@@ -50,41 +52,15 @@ class Writer
         $this->watcher->check();
 
         return $this->db->transaction(function () use ($actor, $changes, $note, $kind, $undoOf) {
-            $current = $this->map->current();
-            $conflicts = [];
-            foreach ($changes as $key => $change) {
-                if (($current[$key] ?? []) !== $change['before']) {
-                    $conflicts[$key] = $current[$key] ?? [];
-                }
-            }
-            if ($conflicts) {
-                throw new Conflict($conflicts);
-            }
-
-            if ($undoOf !== null) {
-                $original = $this->db->table('permission_desk_changesets')->where('id', $undoOf)->first();
-                if (! $original || $original->undone_by) {
-                    throw new ValidationException(['undoOf' => 'That entry can no longer be undone.']);
-                }
-            }
-
-            $audit = $this->extensions->isEnabled('flarum-audit') && class_exists(\Flarum\Audit\AuditLogger::class);
+            $this->assertUnchanged($changes);
+            $this->assertUndoable($undoOf);
 
             foreach ($changes as $key => $change) {
-                $request = RequestUtil::withActor(
+                $this->controller->handle(RequestUtil::withActor(
                     (new ServerRequest([], [], '/permission', 'POST'))->withParsedBody(['permission' => $key, 'groupIds' => $change['after']]),
                     $actor
-                );
-                $this->controller->handle($request);
-
-                if ($audit) {
-                    \Flarum\Audit\AuditLogger::$actor ??= $actor;
-                    \Flarum\Audit\AuditLogger::log('permission_changed', [
-                        'permission' => $key,
-                        'old_group_ids' => $change['before'],
-                        'new_group_ids' => $change['after'],
-                    ]);
-                }
+                ));
+                $this->audit->permissionChanged($actor, $key, $change['before'], $change['after']);
             }
 
             $id = $this->history->record($actor, $kind, $changes, $note, $undoOf);
@@ -96,13 +72,51 @@ class Writer
     }
 
     /**
+     * Every change must start from what the admin saw; otherwise nothing is saved.
+     *
+     * @param array<string, array{before: int[], after: int[]}> $changes
+     *
+     * @throws Conflict
+     */
+    protected function assertUnchanged(array $changes): void
+    {
+        $current = $this->map->current();
+        $conflicts = [];
+        foreach ($changes as $key => $change) {
+            if (($current[$key] ?? []) !== $change['before']) {
+                $conflicts[$key] = $current[$key] ?? [];
+            }
+        }
+        if ($conflicts) {
+            throw new Conflict($conflicts);
+        }
+    }
+
+    protected function assertUndoable(?int $undoOf): void
+    {
+        if ($undoOf === null) {
+            return;
+        }
+        $original = $this->db->table('permission_desk_changesets')->where('id', $undoOf)->first();
+        if (! $original || $original->undone_by) {
+            $this->fail('undoOf', 'not_undoable');
+        }
+    }
+
+    /** @return never */
+    protected function fail(string $field, string $key, array $params = []): void
+    {
+        throw new ValidationException([$field => $this->translator->trans('ernestdefoe-permission-desk.api.'.$key, $params)]);
+    }
+
+    /**
      * @param array<int, mixed> $input
      * @return array<string, array{before: int[], after: int[]}>
      */
     protected function validate(array $input): array
     {
         if (! $input) {
-            throw new ValidationException(['changes' => 'Nothing to save.']);
+            $this->fail('changes', 'nothing_to_save');
         }
 
         $groups = Group::query()->pluck('id')->map(fn ($id) => (int) $id)->all();
@@ -111,7 +125,7 @@ class Writer
         foreach ($input as $row) {
             $key = is_array($row) ? ($row['permission'] ?? null) : null;
             if (! is_string($key) || ! preg_match(self::KEY, $key)) {
-                throw new ValidationException(['changes' => 'Not a permission name.']);
+                $this->fail('changes', 'not_a_permission');
             }
 
             $before = PermissionMap::normalize((array) ($row['before'] ?? []));
@@ -119,7 +133,7 @@ class Writer
 
             foreach ($after as $id) {
                 if (! in_array($id, $groups, true)) {
-                    throw new ValidationException(['changes' => 'No such group: '.$id]);
+                    $this->fail('changes', 'no_such_group', ['id' => $id]);
                 }
             }
 
@@ -129,7 +143,7 @@ class Writer
         }
 
         if (! $out) {
-            throw new ValidationException(['changes' => 'Nothing to save.']);
+            $this->fail('changes', 'nothing_to_save');
         }
 
         ksort($out);

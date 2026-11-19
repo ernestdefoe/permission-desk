@@ -16,7 +16,10 @@ export function bundle<T extends Line>(lines: T[], min = 3): T[][] {
   const by = new Map<string, T[]>();
   lines.forEach((l) => {
     const s = splitKey(l.key);
-    if (!s.tag) return out.push([l]);
+    if (!s.tag) {
+      out.push([l]);
+      return;
+    }
     const id = `${l.group}|${l.op}|${s.key}`;
     const list = by.get(id);
     if (list) list.push(l);

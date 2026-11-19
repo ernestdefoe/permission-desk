@@ -32,7 +32,9 @@ export default class HistoryTab extends Component<{ ui: HistoryUi; onSaved: () =
     const ui = this.attrs.ui;
     ui.loading = true;
     ui.version = desk.historyVersion;
-    api('GET', '/history?offset=' + offset)
+    // The first page logs any changes made outside Permission Desk first (a POST: it can write).
+    (offset ? Promise.resolve(null) : api('POST', '/check'))
+      .then(() => api('GET', '/history?offset=' + offset))
       .then((res: any) => {
         ui.items = offset ? [...(ui.items || []), ...res.changesets] : res.changesets;
         ui.hasMore = res.hasMore;
@@ -44,7 +46,7 @@ export default class HistoryTab extends Component<{ ui: HistoryUi; onSaved: () =
   }
 
   plan(id: number, which: 'undo' | 'restore') {
-    api('GET', `/changesets/${id}/${which}`).then((plan: any) => {
+    api('POST', `/changesets/${id}/${which}`).then((plan: any) => {
       if (!plan.changes.length) {
         app.alerts.clear();
         app.alerts.show(

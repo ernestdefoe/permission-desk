@@ -322,3 +322,12 @@ ernestdefoe-permission-desk:
       ernestdefoe_member_desk_viewIps: Sees IP addresses and other accounts on the same IP.
       ernestdefoe_member_desk_markSpammer: "Can mark spammers: suspend, hide their content and ban their IPs."
       ernestdefoe_member_desk_export: Can export members as CSV, emails included.
+
+  # Errors the API returns (shown to the admin as a validation alert).
+  api:
+    nothing_to_save: Nothing to save.
+    not_a_permission: That isn't a permission name.
+    no_such_group: "There is no group {id}."
+    not_undoable: That entry can no longer be undone.
+    no_such_entry: That History entry doesn't exist.
+    already_undone: That entry has already been undone.

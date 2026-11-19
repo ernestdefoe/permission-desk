@@ -3,6 +3,7 @@
 namespace ErnestDefoe\PermissionDesk;
 
 use Flarum\Foundation\ValidationException;
+use Flarum\Locale\TranslatorInterface;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Collection;
 
@@ -14,7 +15,7 @@ class Planner
     public function __construct(
         protected ConnectionInterface $db,
         protected PermissionMap $map,
-        protected Watcher $watcher,
+        protected TranslatorInterface $translator,
     ) {
     }
 
@@ -26,14 +27,13 @@ class Planner
      */
     public function undo(int $id): array
     {
-        $this->watcher->check();
         $set = $this->db->table('permission_desk_changesets')->where('id', $id)->first();
 
         if (! $set) {
-            throw new ValidationException(['id' => 'No such entry.']);
+            throw $this->invalid('no_such_entry');
         }
         if ($set->undone_by) {
-            throw new ValidationException(['id' => 'Already undone.']);
+            throw $this->invalid('already_undone');
         }
 
         $current = $this->map->current();
@@ -60,10 +60,9 @@ class Planner
      */
     public function restore(int $id): array
     {
-        $this->watcher->check();
 
         if (! $this->db->table('permission_desk_changesets')->where('id', $id)->exists()) {
-            throw new ValidationException(['id' => 'No such entry.']);
+            throw $this->invalid('no_such_entry');
         }
 
         $later = $this->db->table('permission_desk_changesets')->where('id', '>', $id)->pluck('id')->all();
@@ -85,6 +84,11 @@ class Planner
         }
 
         return ['changes' => $changes, 'skipped' => []];
+    }
+
+    protected function invalid(string $key): ValidationException
+    {
+        return new ValidationException(['id' => $this->translator->trans('ernestdefoe-permission-desk.api.'.$key)]);
     }
 
     /** @param int[] $ids */

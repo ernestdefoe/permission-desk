@@ -3,7 +3,7 @@ import AdminPage from 'flarum/admin/components/AdminPage';
 import Button from 'flarum/common/components/Button';
 import LoadingIndicator from 'flarum/common/components/LoadingIndicator';
 import type Mithril from 'mithril';
-import { GUEST, MEMBER, api, desk, t } from './state';
+import { GUEST, MEMBER, api, desk, presetsApi, t } from './state';
 import { tagsOn } from './rows';
 import GroupsTab, { type GroupsUi } from './GroupsTab';
 import PermissionsTab, { type PermissionsUi } from './PermissionsTab';
@@ -61,7 +61,7 @@ export default class DeskPage extends AdminPage {
   };
 
   reloadPresets = () => {
-    api('GET', '/presets').then((list: any[]) => {
+    presetsApi.list().then((list) => {
       ui.presets = list;
       ui.presetsLoaded = true;
       m.redraw();

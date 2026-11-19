@@ -22,6 +22,25 @@ export function api<T = any>(method: string, path: string, body?: any, quiet = f
   } as any);
 }
 
+/** A saved preset, from the `permission-desk-presets` JSON:API resource. */
+export interface SavedPreset {
+  id: number;
+  name: string;
+  permissions: string[];
+}
+
+const presetsUrl = () => `${app.forum.attribute('apiUrl')}/permission-desk-presets`;
+const toPreset = (d: any): SavedPreset => ({ id: Number(d.id), name: d.attributes.name, permissions: d.attributes.permissions });
+
+export const presetsApi = {
+  list: () => app.request<any>({ method: 'GET', url: presetsUrl() }).then((r) => (r.data as any[]).map(toPreset)),
+  create: (name: string, permissions: string[]) =>
+    app
+      .request<any>({ method: 'POST', url: presetsUrl(), body: { data: { type: 'permission-desk-presets', attributes: { name, permissions } } } })
+      .then((r) => toPreset(r.data)),
+  remove: (id: number) => app.request({ method: 'DELETE', url: `${presetsUrl()}/${id}` }),
+};
+
 export type Ids = number[];
 
 const norm = (ids: any[]): Ids =>

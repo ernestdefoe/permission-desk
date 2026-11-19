@@ -74,7 +74,7 @@ let cache: { rows: Row[]; settings: SettingRow[] } | null = null;
  */
 export function collect(): { rows: Row[]; settings: SettingRow[] } {
   if (cache) return cache;
-  const data = (app.registry as any).state.data as Record<string, any>;
+  const data = app.registry.getData() as Record<string, any>;
   const rows: Row[] = [];
   const settings: SettingRow[] = [];
   const seen = new Set<string>();
