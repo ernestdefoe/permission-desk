@@ -262,7 +262,8 @@ export default class TagsTab extends Component<{ ui: TagsUi; openTag: (id: strin
             ]
           : [
               <td colspan={4} className="PermissionDesk-muted PermissionDesk-openNote">
-                {t('tags.open_note')}
+                <span className="PermissionDesk-wide">{t('tags.open_note')}</span>
+                <span className="PermissionDesk-narrow">{t('tags.open_short')}</span>
               </td>,
               <td className="PermissionDesk-tagActions">
                 <Button className="Button Button--link" disabled={ui.busy} onclick={() => this.restrict([i.id])}>
