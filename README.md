@@ -97,6 +97,9 @@ php flarum cache:clear
 
 ## Links
 
+- [Support thread](https://ernestdefoe.online/d/280-permission-desk)
 - [Packagist](https://packagist.org/packages/ernestdefoe/permission-desk)
+- [Download page](https://ernestdefoe.online/downloads/f/permission-desk)
+- [Knowledge base](https://ernestdefoe.online/kb/ext-permission-desk)
 
 MIT licensed. ☕ If you like the things I have built, consider [buying me a coffee](https://buymeacoffee.com/ernestdefoe).
