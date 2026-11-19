@@ -301,6 +301,26 @@ class PermissionDeskTest extends TestCase
     }
 
     #[Test]
+    public function a_check_waits_while_another_runs_so_nothing_is_logged_twice(): void
+    {
+        $container = $this->app()->getContainer();
+        $db = $container->make(ConnectionInterface::class);
+        $this->call('POST', '/check');
+        $db->table('group_permission')->insert(['permission' => 'discussion.sticky', 'group_id' => 10]);
+
+        // Another admin's check holds the lock: this one waits, then gives up rather than racing it.
+        $lock = $container->make('cache.store')->getStore()->lock('permission-desk.check', 30);
+        $this->assertTrue($lock->get());
+        try {
+            $this->expectException(\Illuminate\Contracts\Cache\LockTimeoutException::class);
+            $container->make(\ErnestDefoe\PermissionDesk\Watcher::class)->check();
+        } finally {
+            $lock->release();
+            $this->assertEquals(0, $db->table('permission_desk_changesets')->where('kind', 'outside')->count());
+        }
+    }
+
+    #[Test]
     public function outside_changes_are_kept_even_when_the_save_conflicts(): void
     {
         $db = $this->app()->getContainer()->make(ConnectionInterface::class);
