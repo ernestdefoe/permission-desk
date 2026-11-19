@@ -1,6 +1,6 @@
 # Permission Desk: working rules
 
-- **IN HOUSE (Ernest, 2026-11-14):** private repo, no Packagist, no Depot/KB/Discuss/Floxum/showcase, nothing public until he decides. Deploy to dev.ernestdefoe.online only, as a path package.
+- **PUBLIC, free MIT (Ernest, 2026-11-19):** released on GitHub + Packagist, installed on all five live forums. Announced on ernestdefoe.online ONLY for now: no Discuss thread (leave the repo's DISCUSS_DISCUSSION_ID variable unset) and no showcase until Ernest says so.
 - Commit straight to `main`; never open a pull request. Subjects `feat:` / `fix:`.
 - `js/dist` is committed and is what forums load. After any change under `js/src`, `npm run build` in `js/` (from a fresh `npm ci`) and commit the bundle; CI fails if it is stale.
 - Every change goes to the Command Center (`local_f246f111-…`) for review first.

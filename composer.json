@@ -9,7 +9,7 @@
         "admin"
     ],
     "type": "flarum-extension",
-    "license": "proprietary",
+    "license": "MIT",
     "authors": [
         {
             "name": "Ernest Defoe",
