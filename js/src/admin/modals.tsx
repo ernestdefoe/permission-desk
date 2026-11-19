@@ -6,6 +6,7 @@ import extractText from 'flarum/common/utils/extractText';
 import type Mithril from 'mithril';
 import { ADMIN, GUEST, MEMBER, allowed, api, desk, required, scoped, splitKey, t } from './state';
 import { collect, groupBadge, groupName, labelFor, restrictedTags, rowFor, tagName } from './rows';
+import { bundle, tagsDetail } from './bundle';
 
 type Flag = ['red' | 'amber', Mithril.Children];
 
@@ -67,24 +68,37 @@ export class ReviewModal extends FormModal<ReviewAttrs> {
             {groupBadge(group)} <span className="PermissionDesk-muted">{t('review.count', { count: byGroup.get(group)!.length })}</span>
           </div>
           <ul>
-            {byGroup.get(group)!.map((d) => {
-              const flags = flagsFor(d);
+            {bundle(byGroup.get(group)!).map((items) => {
+              const d = items[0];
+              const seen = new Set<string>();
+              const flags = items.flatMap(flagsFor).filter((f) => {
+                const id = f[0] + extractText(f[1]);
+                return seen.has(id) ? false : (seen.add(id), true);
+              });
               if (flags.some((f) => f[0] === 'red')) red = true;
               const s = splitKey(d.key);
-              const missing = d.op === '+' ? required(d.key).filter((r) => !allowed(group, r)) : [];
+              const missing = [
+                ...new Set(
+                  items.flatMap((x) =>
+                    x.op === '+'
+                      ? required(x.key)
+                          .filter((r) => !allowed(group, r))
+                          .map((r) => labelFor(r))
+                      : []
+                  )
+                ),
+              ];
               return (
                 <li>
                   <span className={'PermissionDesk-op PermissionDesk-op--' + (d.op === '+' ? 'add' : 'remove')}>{d.op === '+' ? '+' : '−'}</span>
                   <span>{t(d.op === '+' ? 'review.can' : 'review.cannot', { what: <b>{labelFor(d.key)}</b> })}</span>
-                  <span className="PermissionDesk-chip">{tagName(s.tag)}</span>
+                  {items.length > 1 ? tagsDetail(items) : <span className="PermissionDesk-chip">{tagName(s.tag)}</span>}
                   {flags.map((f) => (
                     <span className={'PermissionDesk-flag PermissionDesk-flag--' + f[0]}>
                       <Icon name="fas fa-triangle-exclamation" /> {f[1]}
                     </span>
                   ))}
-                  {missing.length ? (
-                    <span className="PermissionDesk-why">{t('review.needs', { what: missing.map(labelFor).join(', ') })}</span>
-                  ) : null}
+                  {missing.length ? <span className="PermissionDesk-why">{t('review.needs', { what: missing.join(', ') })}</span> : null}
                 </li>
               );
             })}
@@ -265,11 +279,7 @@ export class CopyModal extends FormModal<CopyAttrs> {
         {restrictedTags().length ? (
           <label className="PermissionDesk-check">
             <input type="checkbox" checked={this.tags} onchange={(e: Event) => (this.tags = (e.target as HTMLInputElement).checked)} />{' '}
-            {t('copy.tags', {
-              tags: restrictedTags()
-                .map((tag) => tag.attribute('name'))
-                .join(', '),
-            })}
+            {t('copy.tags', { count: restrictedTags().length })}
           </label>
         ) : null}
         <p className="PermissionDesk-note PermissionDesk-note--info">{t('copy.count', { count: n })}</p>

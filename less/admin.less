@@ -190,6 +190,11 @@ html:not(#x-hi) .PermissionDesk-tab {
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
+  // A long tag path ("Staff Rooms › Long-running discussions…") ellipsises instead of running off a phone.
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 
   &--ext {
     background: var(--pd-soft);
@@ -888,6 +893,10 @@ html:not(#x-hi) .PermissionDesk-tab {
 
 // ---------- save bar (fixed: sticky never sticks inside Flarum's admin)
 
+// Flarum's alerts sit bottom-left, under the save bar on phones: lift them above it while it shows.
+body:has(.PermissionDesk-savebar) .AlertManager {
+  bottom: 84px;
+}
 .PermissionDesk-savebar {
   position: fixed;
   left: 50%;
@@ -1034,6 +1043,274 @@ html:not(#x-hi) .PermissionDesk-tab {
   }
 }
 
+// ---------- tag picker (search over hundreds of tags)
+
+.PermissionDesk-picker {
+  position: relative;
+  min-width: 0;
+  flex: 0 1 280px;
+}
+html:not(#x-hi) .PermissionDesk-pickerBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: auto;
+  min-height: 36px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--pd-text);
+
+  .PermissionDesk-tagDot {
+    margin-right: 0;
+    flex: none;
+  }
+  .icon {
+    margin-left: auto;
+    color: var(--pd-muted);
+  }
+}
+.PermissionDesk-pickerText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.PermissionDesk-pickerPop {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  width: ~"max(100%, 300px)";
+  max-width: calc(100vw - 24px);
+  background: var(--pd-bg);
+  border: 1px solid var(--pd-line);
+  border-radius: var(--pd-radius);
+  box-shadow: var(--pd-shadow);
+  padding: 8px;
+
+  input.FormControl {
+    width: 100%;
+    margin-bottom: 6px;
+  }
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 320px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  li {
+    display: flex;
+    align-items: center;
+    padding: 7px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--pd-text);
+    font-size: 13px;
+
+    span:last-child {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    &.is-active {
+      background: var(--pd-sel);
+    }
+    &.is-current {
+      font-weight: 700;
+    }
+  }
+}
+.PermissionDesk-pickerEmpty {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+// ---------- tags tab
+
+.PermissionDesk-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--pd-muted);
+  font-weight: 600;
+  font-size: 13px;
+
+  select.FormControl {
+    width: auto;
+    max-width: 220px;
+  }
+}
+.PermissionDesk-tagTable {
+  td,
+  th {
+    vertical-align: middle;
+  }
+  td:nth-child(2),
+  th:nth-child(2) {
+    text-align: left;
+  }
+  tbody tr:hover {
+    background: var(--pd-hover);
+  }
+  tr.is-selected {
+    background: var(--pd-sel);
+  }
+  tr.is-changed td:nth-child(2) {
+    box-shadow: inset 3px 0 0 var(--pd-warn);
+  }
+}
+th.PermissionDesk-pick,
+td.PermissionDesk-pick {
+  width: 34px;
+  text-align: center !important;
+}
+.PermissionDesk-tagName {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 220px;
+
+  > * {
+    flex: none;
+  }
+}
+.PermissionDesk-tagLabel {
+  font-weight: 600;
+  color: var(--pd-text);
+  flex: 0 1 auto !important;
+  min-width: 0;
+}
+.PermissionDesk-caret,
+.PermissionDesk-caretSpace {
+  width: 20px;
+  flex: none;
+}
+.PermissionDesk-caret {
+  border: 0;
+  background: none;
+  padding: 2px 0;
+  color: var(--pd-muted);
+  cursor: pointer;
+}
+.PermissionDesk-lock {
+  color: var(--pd-muted);
+  font-size: 11px;
+  margin-left: 2px;
+}
+.PermissionDesk-cell {
+  min-width: 36px;
+  height: 30px;
+  border-radius: 7px;
+  border: 1px solid var(--pd-line);
+  background: var(--pd-bg);
+  color: var(--pd-faint);
+  font-weight: 700;
+  cursor: pointer;
+
+  &.is-on {
+    background: var(--pd-ok-bg);
+    border-color: var(--pd-ok-bg);
+    color: var(--pd-ok);
+  }
+  &.is-inh {
+    color: var(--pd-ok);
+    border-style: dashed;
+  }
+  &:focus-visible {
+    outline: 2px solid var(--pd-primary);
+    outline-offset: 1px;
+  }
+}
+html:not(#x-hi) .PermissionDesk-tagTable .Button--link {
+  color: var(--pd-primary);
+  padding: 2px 4px;
+}
+.PermissionDesk-openNote {
+  text-align: left !important;
+  font-size: 12px !important;
+  color: var(--pd-muted) !important;
+}
+.PermissionDesk-tagActions {
+  text-align: right !important;
+  white-space: nowrap;
+}
+.PermissionDesk-bulk {
+  border: 1px solid var(--pd-line);
+  border-radius: var(--pd-radius);
+  background: var(--pd-hover);
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  p {
+    margin: 0;
+    font-size: 12px;
+  }
+}
+.PermissionDesk-bulkHead,
+.PermissionDesk-bulkRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+
+  select.FormControl {
+    width: auto;
+    max-width: 100%;
+    height: auto;
+    min-height: 36px;
+  }
+}
+.PermissionDesk-bulkHead b {
+  color: var(--pd-text);
+}
+
+// ---------- many tags elsewhere
+
+.PermissionDesk-editorFoot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+  border-top: 1px dashed var(--pd-line);
+  font-size: 12px;
+}
+.PermissionDesk-inTags {
+  display: inline;
+
+  summary {
+    display: inline-block;
+    cursor: pointer;
+    list-style: none;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  &[open] > span {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+  }
+}
+.PermissionDesk-subheadBtn {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  color: var(--pd-text);
+  cursor: pointer;
+  text-align: left;
+}
+
 // ---------- phones
 
 @media (max-width: 767px) {
@@ -1111,5 +1388,19 @@ html:not(#x-hi) .PermissionDesk-tab {
   .PermissionDesk-mhead .Button {
     flex: 1 1 auto;
     justify-content: center;
+  }
+  .PermissionDesk-picker {
+    flex: 1 1 100%;
+  }
+  .PermissionDesk-tagName {
+    min-width: 170px;
+  }
+  .PermissionDesk-tagTable th,
+  .PermissionDesk-tagTable td {
+    padding: 6px 5px;
+  }
+  .PermissionDesk-bulkRow .Button,
+  .PermissionDesk-bulkRow select.FormControl {
+    flex: 1 1 auto;
   }
 }

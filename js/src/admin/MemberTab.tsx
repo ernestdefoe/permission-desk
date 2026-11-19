@@ -8,6 +8,7 @@ import isExtensionEnabled from 'flarum/admin/utils/isExtensionEnabled';
 import type Mithril from 'mithril';
 import { GUEST, MEMBER, api, desk, required, scoped, t } from './state';
 import { AREAS, collect, groupBadge, groupName, restrictedTags, tagName } from './rows';
+import TagPicker from './TagPicker';
 import { flagBadge } from './GroupsTab';
 
 export interface MemberUi {
@@ -125,17 +126,7 @@ export default class MemberTab extends Component<{ ui: MemberUi }> {
             ) : null}
           </div>
           {tags.length ? (
-            <select
-              className="FormControl"
-              aria-label={extractText(t('scope.label'))}
-              value={ui.scope}
-              onchange={(e: Event) => (ui.scope = (e.target as HTMLSelectElement).value)}
-            >
-              <option value="global">{t('scope.global')}</option>
-              {tags.map((tag) => (
-                <option value={tag.id()}>{t('scope.in_tag', { tag: tag.attribute('name') })}</option>
-              ))}
-            </select>
+            <TagPicker value={ui.scope} global restricted label={extractText(t('scope.label'))} onchange={(id: string) => (ui.scope = id)} />
           ) : null}
         </div>
         {ui.loading ? <LoadingIndicator /> : ui.data ? this.result() : <p className="PermissionDesk-empty">{t('member.pick')}</p>}
@@ -174,7 +165,12 @@ export default class MemberTab extends Component<{ ui: MemberUi }> {
       summary = t('member.sum', {
         name: first,
         start: can('startDiscussion') ? 1 : 0,
-        hidden: hidden.length ? hidden.map((tag) => tag.attribute('name')).join(', ') : '',
+        hidden: hidden.length
+          ? hidden
+              .slice(0, 5)
+              .map((tag) => tagName(tag.id()))
+              .join(', ') + (hidden.length > 5 ? extractText(t('and_more', { count: hidden.length - 5 })) : '')
+          : '',
         has_hidden: hidden.length ? 1 : 0,
         mods,
       });

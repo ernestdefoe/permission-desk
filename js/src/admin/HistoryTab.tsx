@@ -7,6 +7,7 @@ import type Mithril from 'mithril';
 import { api, desk, splitKey, t } from './state';
 import { groupBadge, labelFor, tagName } from './rows';
 import { ReviewModal } from './modals';
+import { bundle, tagsDetail, type Line } from './bundle';
 
 export interface HistoryUi {
   items: any[] | null;
@@ -103,30 +104,25 @@ export default class HistoryTab extends Component<{ ui: HistoryUi; onSaved: () =
   }
 
   entry(c: any, newest: boolean) {
-    const lines: Mithril.Children[] = [];
+    const raw: Line[] = [];
     c.changes.forEach((ch: any) => {
-      const s = splitKey(ch.permission);
-      const scope = s.tag ? <span className="PermissionDesk-chip">{t('history.in', { tag: tagName(s.tag) })}</span> : null;
-      ch.after
-        .filter((g: number) => !ch.before.includes(g))
-        .forEach((g: number) =>
-          lines.push(
-            <li>
-              <span className="PermissionDesk-op PermissionDesk-op--add">+</span>
-              {groupBadge(g)} <span>{labelFor(ch.permission)}</span> {scope}
-            </li>
-          )
-        );
-      ch.before
-        .filter((g: number) => !ch.after.includes(g))
-        .forEach((g: number) =>
-          lines.push(
-            <li>
-              <span className="PermissionDesk-op PermissionDesk-op--remove">−</span>
-              {groupBadge(g)} <span>{labelFor(ch.permission)}</span> {scope}
-            </li>
-          )
-        );
+      ch.after.filter((g: number) => !ch.before.includes(g)).forEach((g: number) => raw.push({ key: ch.permission, group: g, op: '+' }));
+      ch.before.filter((g: number) => !ch.after.includes(g)).forEach((g: number) => raw.push({ key: ch.permission, group: g, op: '-' }));
+    });
+    const lines = bundle(raw).map((items) => {
+      const l = items[0];
+      const s = splitKey(l.key);
+      return (
+        <li>
+          <span className={'PermissionDesk-op PermissionDesk-op--' + (l.op === '+' ? 'add' : 'remove')}>{l.op === '+' ? '+' : '−'}</span>
+          {groupBadge(l.group)} <span>{labelFor(l.key)}</span>{' '}
+          {items.length > 1 ? (
+            tagsDetail(items)
+          ) : s.tag ? (
+            <span className="PermissionDesk-chip">{t('history.in', { tag: tagName(s.tag) })}</span>
+          ) : null}
+        </li>
+      );
     });
 
     return (
@@ -136,7 +132,7 @@ export default class HistoryTab extends Component<{ ui: HistoryUi; onSaved: () =
           <time className="PermissionDesk-muted" dateTime={c.createdAt} title={dayjs(c.createdAt).format('LLLL')}>
             {dayjs(c.createdAt).fromNow()}
           </time>
-          <span className="PermissionDesk-muted">· {t('history.changes', { count: lines.length })}</span>
+          <span className="PermissionDesk-muted">· {t('history.changes', { count: raw.length })}</span>
           {c.kind !== 'save' ? <span className="PermissionDesk-chip">{t('history.kind_' + c.kind, { id: c.undoOf })}</span> : null}
           {c.undoneBy ? <span className="PermissionDesk-chip">{t('history.undone')}</span> : null}
           <span className="PermissionDesk-entryActions">

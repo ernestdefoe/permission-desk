@@ -9,15 +9,17 @@ import GroupsTab, { type GroupsUi } from './GroupsTab';
 import PermissionsTab, { type PermissionsUi } from './PermissionsTab';
 import MemberTab, { type MemberUi } from './MemberTab';
 import HistoryTab, { type HistoryUi } from './HistoryTab';
+import TagsTab, { tagsUi } from './TagsTab';
 import { ReviewModal } from './modals';
 
-const TABS = ['groups', 'permissions', 'member', 'history'] as const;
+const TABS = ['groups', 'permissions', 'tags', 'member', 'history'] as const;
 type Tab = (typeof TABS)[number];
 
 // Kept for the life of the admin page, so switching tabs or pages loses nothing.
 const ui = {
-  groups: { group: 4, scope: 'global', q: '', by: 'area', compare: false, a: 4, b: MEMBER, onlyDiff: true, hint: null } as GroupsUi,
-  permissions: { q: '', filter: 'all', open: null } as PermissionsUi,
+  groups: { group: 4, scope: 'global', q: '', by: 'area', compare: false, a: 4, b: MEMBER, onlyDiff: true, cmpOpen: {}, hint: null } as GroupsUi,
+  permissions: { q: '', filter: 'all', open: null, extra: [] } as PermissionsUi,
+  tags: tagsUi(MEMBER),
   member: { id: null, q: '', results: null, scope: 'global', data: null, loading: false } as MemberUi,
   history: { items: null, hasMore: false, loading: false, version: -1, q: '' } as HistoryUi,
   presets: [] as any[],
@@ -37,7 +39,7 @@ export default class DeskPage extends AdminPage {
     const memberId = Number(m.route.param('id'));
     if (memberId) ui.member.id = memberId;
     if (tagsOn() && !tagsReady) {
-      (app as any).tagList.load().then(() => {
+      (app as any).tagList.load(['parent']).then(() => {
         tagsReady = true;
         m.redraw();
       });
@@ -69,7 +71,7 @@ export default class DeskPage extends AdminPage {
   tab(): Tab {
     if (m.route.param('id')) return 'member';
     const tab = m.route.param('tab') as Tab;
-    return TABS.includes(tab) ? tab : 'groups';
+    return TABS.includes(tab) && (tab !== 'tags' || tagsOn()) ? tab : 'groups';
   }
 
   headerInfo() {
@@ -91,7 +93,7 @@ export default class DeskPage extends AdminPage {
       <div className="PermissionDesk">
         <div className="PermissionDesk-top">
           <nav className="PermissionDesk-tabs" role="tablist" aria-label={String(t('page.title'))}>
-            {TABS.map((to) => (
+            {TABS.filter((to) => to !== 'tags' || tagsOn()).map((to) => (
               <a
                 role="tab"
                 aria-selected={tab === to ? 'true' : 'false'}
@@ -111,7 +113,15 @@ export default class DeskPage extends AdminPage {
           </a>
         </div>
 
-        {tab === 'groups' ? <GroupsTab ui={ui.groups} presets={() => ui.presets} reloadPresets={this.reloadPresets} /> : null}
+        {tab === 'groups' ? (
+          <GroupsTab
+            ui={ui.groups}
+            presets={() => ui.presets}
+            reloadPresets={this.reloadPresets}
+            openTags={(group: number) => this.openTags(group)}
+          />
+        ) : null}
+        {tab === 'tags' ? <TagsTab ui={ui.tags} openTag={(id: string, group: number) => this.openTag(id, group)} /> : null}
         {tab === 'permissions' ? <PermissionsTab ui={ui.permissions} /> : null}
         {tab === 'member' ? <MemberTab ui={ui.member} /> : null}
         {tab === 'history' ? <HistoryTab ui={ui.history} onSaved={() => this.saved()} /> : null}
@@ -128,13 +138,32 @@ export default class DeskPage extends AdminPage {
             >
               {t('savebar.discard')}
             </Button>
-            <Button className="Button Button--primary" onclick={() => app.modal.show(ReviewModal, { onSaved: () => this.saved() })}>
+            <Button
+              className="Button Button--primary"
+              onclick={() => {
+                app.alerts.clear();
+                app.modal.show(ReviewModal, { onSaved: () => this.saved() });
+              }}
+            >
               {t('savebar.review')}
             </Button>
           </div>
         ) : null}
       </div>
     );
+  }
+
+  /** From the Tags tab: one tag's full list of permissions for that group, on the Groups tab. */
+  openTag(id: string, group: number) {
+    Object.assign(ui.groups, { group, scope: id, q: '', compare: false, hint: null });
+    m.route.set(app.route('permissions'));
+    window.scrollTo(0, 0);
+  }
+
+  openTags(group: number) {
+    ui.tags.group = group;
+    m.route.set(app.route('permissionDesk.tab', { tab: 'tags' }));
+    window.scrollTo(0, 0);
   }
 
   saved() {

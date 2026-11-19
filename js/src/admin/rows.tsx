@@ -137,27 +137,85 @@ export function orphans(): string[] {
 
 export const tagsOn = () => isExtensionEnabled('flarum-tags');
 
-export function restrictedTags(): any[] {
-  if (!tagsOn()) return [];
-  return app.store
-    .all<any>('tags')
-    .filter((tag) => tag.attribute('isRestricted'))
-    .sort(
-      (a, b) => (a.attribute('position') ?? 999) - (b.attribute('position') ?? 999) || String(a.attribute('name')).localeCompare(b.attribute('name'))
-    );
+export interface TagItem {
+  tag: any;
+  id: string;
+  name: string;
+  /** "Parent › Child" for a child tag, so a search result is never ambiguous. */
+  path: string;
+  depth: number;
+  parentId: string | null;
+  restricted: boolean;
 }
 
-export function unrestrictedTags(): any[] {
+let tree: { sig: string; items: TagItem[] } | null = null;
+
+/**
+ * Every tag in the forum's own order: primary tags by position with their children under them,
+ * then secondary tags by name. Recomputed only when tags are added, removed or (un)restricted.
+ */
+export function tagItems(): TagItem[] {
   if (!tagsOn()) return [];
-  return app.store
-    .all<any>('tags')
-    .filter((tag) => !tag.attribute('isRestricted'))
-    .sort((a, b) => String(a.attribute('name')).localeCompare(b.attribute('name')));
+  const all = app.store.all<any>('tags');
+  const sig = all.map((tag) => tag.id() + (tag.attribute('isRestricted') ? 'r' : 'o')).join();
+  if (tree && tree.sig === sig) return tree.items;
+
+  const ids = new Set(all.map((tag) => tag.id()));
+  const parentOf = (tag: any): string | null => {
+    const p = tag.parent?.();
+    return p && ids.has(p.id()) ? p.id() : null;
+  };
+  const byPos = (a: any, b: any) =>
+    (a.attribute('position') ?? 1e9) - (b.attribute('position') ?? 1e9) || String(a.attribute('name')).localeCompare(b.attribute('name'));
+  const children = new Map<string, any[]>();
+  const roots: any[] = [];
+  all.forEach((tag) => {
+    const p = parentOf(tag);
+    if (p) children.set(p, [...(children.get(p) || []), tag]);
+    else roots.push(tag);
+  });
+
+  const items: TagItem[] = [];
+  const add = (tag: any, depth: number, parent: any | null) => {
+    const name = String(tag.attribute('name'));
+    items.push({
+      tag,
+      id: tag.id(),
+      name,
+      path: parent ? `${parent.attribute('name')} › ${name}` : name,
+      depth,
+      parentId: parent ? parent.id() : null,
+      restricted: !!tag.attribute('isRestricted'),
+    });
+    (children.get(tag.id()) || []).sort(byPos).forEach((child) => add(child, depth + 1, tag));
+  };
+  roots.sort(byPos).forEach((tag) => add(tag, 0, null));
+  tree = { sig, items };
+  return items;
 }
+
+/** Every word of the search appears in the tag's "Parent › Child" path ("clubs show" finds "Clubs › Showcase"). */
+export function tagMatches(path: string, q: string): boolean {
+  const p = path.toLowerCase();
+  return q
+    .toLowerCase()
+    .split(/[\s›>]+/)
+    .filter(Boolean)
+    .every((w) => p.includes(w));
+}
+
+export function restrictedTags(): any[] {
+  return tagItems()
+    .filter((i) => i.restricted)
+    .map((i) => i.tag);
+}
+
+/** More restricted tags than fit comfortably on one screen: lists show only what differs. */
+export const MANY_TAGS = 8;
 
 export function tagName(id: string | null): string {
   if (!id) return extractText(t('scope.global'));
-  return app.store.getById<any>('tags', id)?.attribute('name') ?? `#${id}`;
+  return tagItems().find((i) => i.id === id)?.path ?? app.store.getById<any>('tags', id)?.attribute('name') ?? `#${id}`;
 }
 
 /** Guests and Members first, then Admins, then everything else in core's order. */

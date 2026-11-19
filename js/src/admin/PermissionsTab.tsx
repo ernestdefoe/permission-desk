@@ -4,13 +4,16 @@ import Icon from 'flarum/common/components/Icon';
 import extractText from 'flarum/common/utils/extractText';
 import type Mithril from 'mithril';
 import { ADMIN, GUEST, MEMBER, desk, scoped, t } from './state';
-import { AREAS, collect, groupBadge, groupName, groups, orphans, restrictedTags, type Row } from './rows';
+import { AREAS, MANY_TAGS, collect, groupBadge, groupName, groups, orphans, restrictedTags, tagName, type Row } from './rows';
+import TagPicker from './TagPicker';
 import { flagBadge, mark } from './GroupsTab';
 
 export interface PermissionsUi {
   q: string;
   filter: 'all' | 'guests' | 'one' | 'none' | 'danger' | 'other';
   open: string | null;
+  /** Tags the admin picked to change this permission in, besides the ones that already differ. */
+  extra: string[];
 }
 
 const FILTERS: PermissionsUi['filter'][] = ['all', 'guests', 'one', 'none', 'danger', 'other'];
@@ -88,7 +91,10 @@ export default class PermissionsTab extends Component<{ ui: PermissionsUi }> {
     const differ = tags.filter((tag) => desk.cur(scoped(r.key, tag.id())).join() !== set.join()).length;
     const open = ui.open === r.key;
     const changed = Object.keys(desk.staged).some((k) => k === r.key || k.endsWith('.' + r.key));
-    const toggle = () => (ui.open = open ? null : r.key);
+    const toggle = () => {
+      ui.open = open ? null : r.key;
+      ui.extra = [];
+    };
 
     return (
       <div className={'PermissionDesk-prow' + (open ? ' is-open' : '')}>
@@ -119,9 +125,17 @@ export default class PermissionsTab extends Component<{ ui: PermissionsUi }> {
   }
 
   editor(r: Row, tags: any[]) {
+    const ui = this.attrs.ui;
+    const global = desk.cur(r.key).join();
+    const differs = (id: string) => desk.cur(scoped(r.key, id)).join() !== global;
+    const many = tags.length > MANY_TAGS;
+    // With many tags, only the ones that differ from Everywhere (or that the admin picked) are listed.
+    const shown = many ? tags.filter((tag) => differs(tag.id()) || ui.extra.includes(tag.id())) : tags;
+    const differing = tags.filter((tag) => differs(tag.id()));
+    const same = tags.length - differing.length;
     const scopes: [string, Mithril.Children][] = [
       ['global', t('scope.global')],
-      ...tags.map((tag) => [tag.id(), t('scope.in_tag', { tag: tag.attribute('name') })] as [string, Mithril.Children]),
+      ...shown.map((tag) => [tag.id(), t('scope.in_tag', { tag: tagName(tag.id()) })] as [string, Mithril.Children]),
     ];
     const all = groups().map((g) => Number(g.id()));
     return (
@@ -150,6 +164,27 @@ export default class PermissionsTab extends Component<{ ui: PermissionsUi }> {
             </div>
           );
         })}
+        {many ? (
+          <div className="PermissionDesk-editorFoot">
+            <span className="PermissionDesk-muted">{t('tags.same_in', { count: same })}</span>
+            <TagPicker
+              value=""
+              restricted
+              exclude={shown.map((tag) => tag.id())}
+              placeholder={extractText(t('tags.change_in'))}
+              label={extractText(t('tags.change_in'))}
+              onchange={(id: string) => ui.extra.push(id)}
+            />
+            {differing.length ? (
+              <Button
+                className="Button Button--small"
+                onclick={() => differing.forEach((tag) => desk.stage(scoped(r.key, tag.id()), desk.cur(r.key)))}
+              >
+                {t('tags.match_all', { count: differing.length })}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     );
   }

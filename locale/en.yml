@@ -7,6 +7,7 @@ ernestdefoe-permission-desk:
     tab:
       groups: Groups
       permissions: Permissions
+      tags: Tags
       member: Check a member
       history: History
 
@@ -44,6 +45,12 @@ ernestdefoe-permission-desk:
     cancel: Cancel
     stage: "Stage {count, plural, one {# change} other {# changes}}"
     staged: "Staged {count, plural, one {# change} other {# changes}}. Review before saving."
+    and_more: ", and {count} more"
+
+    picker:
+      search: Find a tag…
+      none: No tags match.
+      more: "{count} more: keep typing to narrow the list."
 
     area:
       view: Viewing
@@ -70,18 +77,69 @@ ernestdefoe-permission-desk:
 
     tags:
       title: "Restricted tags for {group}"
+      summary_group: "{group} can see {view} of {total, plural, one {# restricted tag} other {# restricted tags}}, start discussions in {start} and reply in {reply}."
+      summary_admin: "Admins can do everything in all {total, plural, one {# restricted tag} other {# restricted tags}}."
+      summary_none: "No tag is restricted, so these permissions apply in every tag. Restrict a tag to give it its own."
+      open_tab: Open the Tags tab
+      for: Show for
+      search: "Find a tag (name, or Parent › Child)"
+      filter:
+        all: All tags
+        restricted: Restricted
+        open: Not restricted
+        hidden: "{group} can't see"
+        custom: Different from Everywhere
+        selected: "Selected ({count})"
+      summary: "{total, plural, one {# tag} other {# tags}}, {restricted} restricted. {group} can see {see} of the restricted ones."
       tag: Tag
       view: View
       start: Start
       reply: Reply
       moderate: Moderate
-      all: all
+      of: "{on} of {total}"
       edit: Edit
-      restrict_title: Restrict a tag
-      restrict_help: A restricted tag gets its own permissions, which replace the global ones inside it.
-      restrict: Restrict a tag…
-      unrestrict: "Unrestrict {tag}"
-      unrestrict_confirm: "Unrestrict {tag}? Its own permissions stop counting and the global ones apply in it again."
+      none: No tags match.
+      more: "Show more ({count} left)"
+      select_shown: Select every tag shown
+      select: "Select {tag}"
+      expand: "Show the tags inside {tag}"
+      collapse: "Hide the tags inside {tag}"
+      restricted: "Restricted: only its own permissions count inside it"
+      parent_hidden: parent hidden
+      parent_hidden_help: "This group can't see {parent}, and Flarum hides a child tag from anyone who can't see its parent."
+      open_note: "Not restricted: uses Everywhere's permissions"
+      collapse_all: Collapse all
+      expand_all: Expand all
+      restrict_one: Restrict
+      cell: "{what} in {tag}"
+      bulk_label: Change the selected tags
+      selected: "{count, plural, one {# tag selected} other {# tags selected}}"
+      clear_selection: Clear selection
+      action: Allow or remove
+      allow: "Allow {group} to"
+      remove: "Take away from {group}"
+      what: Which permissions
+      what_viewForum: view discussions
+      what_startDiscussion: start discussions
+      what_discussion_reply: reply
+      what_post: view, start and reply
+      what_moderate: "everyday moderation (risky ones only when taking away)"
+      what_all: "everything (risky ones only when taking away)"
+      apply: "Stage for {count, plural, one {# tag} other {# tags}}"
+      copy_from: Copy every permission from
+      copy_to: "Copy to {count, plural, one {# tag} other {# tags}}"
+      restrict_many: "Restrict {count, plural, one {# tag} other {# tags}}"
+      unrestrict_many: "Unrestrict {count, plural, one {# tag} other {# tags}}"
+      remove_note: Taking a permission away from a group doesn't affect members who still get it through Everyone or Members.
+      nothing: Nothing to change. The selected tags already match.
+      restrict_confirm: "Restrict {count, plural, one {this tag} other {these # tags}}? Each one starts with a copy of Everywhere's permissions (saved now and logged in History), so nothing changes for anyone until you edit them."
+      restrict_note: "Restricted {tags}{count, plural, one {} =2 {} =3 {} other {, and more}}: copied Everywhere's permissions"
+      restricted_done: "Restricted {count, plural, one {# tag} other {# tags}}. Their permissions match Everywhere until you change them."
+      unrestrict_confirm: "Unrestrict {count, plural, one {this tag} other {these # tags}}? Their own permissions stop counting and Everywhere's apply in them again. Their own permissions are kept in case you restrict them again."
+      unrestricted_done: "Unrestricted {count, plural, one {# tag} other {# tags}}."
+      same_in: "Same as Everywhere in {count, plural, one {# other restricted tag} other {# other restricted tags}}."
+      change_in: Change it in another tag…
+      match_all: "Make {count, plural, one {# tag} other {all # tags}} match Everywhere"
 
     settings:
       title: Forum-wide settings
@@ -95,6 +153,7 @@ ernestdefoe-permission-desk:
     match: "Make {b} match {a}"
     differences: "{count, plural, one {# difference} other {# differences}} between {a} and {b}, everywhere and in {tags, plural, one {# restricted tag} other {# restricted tags}}."
     no_differences: No differences.
+    differences_short: "{count, plural, one {# difference} other {# differences}}"
 
     filter:
       label: Show
@@ -128,7 +187,7 @@ ernestdefoe-permission-desk:
       replace_help: "{to} ends up with exactly what {from} has."
       add: Add only
       add_help: "Grant {to} anything {from} has; take nothing away."
-      tags: "Include restricted tags ({tags})"
+      tags: "Include restricted tags ({count, plural, one {# tag} other {# tags}})"
       count: "{count, plural, =0 {Nothing to change: they already match.} one {# change will be staged. You'll see it in the review before anything is saved.} other {# changes will be staged. You'll see each one in the review before anything is saved.}}"
 
     preset:
@@ -162,6 +221,7 @@ ernestdefoe-permission-desk:
       can: "Can {what}"
       cannot: "Can no longer {what}"
       needs: "Won't take effect until they also have: {what}"
+      in_tags: "in {count} tags"
       skipped: "Skipped because they changed again since: {what}"
       note: Note for History (optional)
       note_placeholder: e.g. Let Support Team moderate in Support

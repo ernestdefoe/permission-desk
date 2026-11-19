@@ -59,6 +59,23 @@ class PermissionDeskTest extends TestCase
         ]);
     }
 
+    /**
+     * A save runs core's own SetPermissionController once per changed permission (Ernest's pick:
+     * every write goes through core's handler, its admin check and cache flush), so a bulk save
+     * repeats its delete + insert per permission by design. Nothing else may repeat.
+     *
+     * @return string[]
+     */
+    protected function allowedRepeatedQueries(): array
+    {
+        return [
+            'group_permission" where "permission" = ?',
+            'group_permission` where `permission` = ?',
+            'group_permission" ("group_id", "permission")',
+            'group_permission` (`group_id`, `permission`)',
+        ];
+    }
+
     /** @param array<string, mixed> $json */
     protected function call(string $method, string $path, int $as = 1, array $json = []): ResponseInterface
     {
@@ -338,5 +355,45 @@ class PermissionDeskTest extends TestCase
         $this->assertEquals($one, $count('/history'), 'history: same queries for 1 or 13 entries');
 
         $this->assertLessThanOrEqual($count('/members/2') + 0, $count('/members/3'));
+    }
+
+    #[Test]
+    public function one_save_across_hundreds_of_tag_permissions_is_one_changeset_with_bounded_queries(): void
+    {
+        $db = $this->app()->getContainer()->make(ConnectionInterface::class);
+        $rows = function (int $tags, array $before, array $after): array {
+            $out = [];
+            foreach (range(100, 99 + $tags) as $tag) {
+                foreach (['viewForum', 'startDiscussion', 'discussion.reply'] as $p) {
+                    $out[] = ["tag$tag.$p", $before, $after];
+                }
+            }
+
+            return $out;
+        };
+        $queries = function (array $changes) use ($db): int {
+            $db->flushQueryLog();
+            $db->enableQueryLog();
+            $r = $this->save($changes);
+            $this->assertEquals(200, $r->getStatusCode(), substr((string) $r->getBody(), 0, 300));
+            $n = count($db->getQueryLog());
+            $db->disableQueryLog();
+
+            return $n;
+        };
+
+        $this->call('GET', '/history');
+        $small = $queries($rows(2, [], [3]));
+        $big = $queries(array_slice($rows(152, [], [3]), 6));
+
+        // 450 permissions (150 tags x 3) in one save: every row written, one History entry.
+        $this->assertEquals([3], $this->groupsWith('tag251.discussion.reply'));
+        $this->assertEquals(456, $db->table('group_permission')->where('permission', 'like', 'tag1__.%')->orWhere('permission', 'like', 'tag2__.%')->count());
+        $entry = $this->json($this->call('GET', '/history'))['changesets'][0];
+        $this->assertCount(450, $entry['changes']);
+
+        // Cost grows only with the rows written (core's handler per permission), never per tag looked up.
+        $perChange = ($big - $small) / (450 - 6);
+        $this->assertLessThanOrEqual(4, $perChange, "queries per changed permission: $perChange ($small for 6, $big for 450)");
     }
 }
